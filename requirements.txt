@@ -3,3 +3,10 @@ pytest>=7.0
 semgrep>=1.20
 bandit>=1.7.0
 pytest
+duckdb
+faiss-cpu
+numpy
+openai
+scikit-learn
+sentence-transformers
+torch

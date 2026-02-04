@@ -13,3 +13,4 @@ backend/artifacts/bandit.json
 backend/artifacts/semgrep.json
 backend/artifacts/ingest_meta.json
 backend/data/nvd.json
+backend/local_index/

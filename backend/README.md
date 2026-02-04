@@ -28,6 +28,21 @@ python -m ingest.nvd_loader --src data/raw --cache data/nvd.json --min 500 --pri
 python -m normalize.linker --bandit artifacts/bandit.json --semgrep artifacts/semgrep.json --cve-cache data/nvd.json
 ```
 
+### Chunk repository code
+```ps1
+python -m index.chunker --repo-root repo_checkout --print-n 2
+```
+
+### Build the index
+```ps1
+python -m index.store_faiss index `
+  --repo-root repo_checkout `
+  --bandit artifacts/bandit.json `
+  --semgrep artifacts/semgrep.json `
+  --cve-cache data/nvd.json `
+  --out-dir local_index
+```
+
 ## To Run Tests
 ```ps1
 py -m pytest -q
