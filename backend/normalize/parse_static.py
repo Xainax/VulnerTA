@@ -142,7 +142,10 @@ def parse_bandit_json(path: str | Path) -> List[Finding]:
         if isinstance(issue_cwe, dict):
             cwe_id = issue_cwe.get("id")
             if cwe_id:
-                cwe_ids.append(str(cwe_id))
+                s = str(cwe_id)
+                if s.isdigit():
+                    s = f"CWE-{s}"
+                cwe_ids.append(s)
 
         finding = Finding(
             meta=ToolMeta(
