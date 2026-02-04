@@ -7,7 +7,8 @@ https://github.com/advanced-security-demo/demo-python
 
 ## .env
 ```ps1
-OPENAI_API_KEY="insert OpenAI API key here"  
+OPENAI_API_KEY="insert OpenAI API key here" 
+OPENAI_CHAT_MODEL="gpt-4o-mini" 
 INDEX_DIR="local_index"
 ```
 
@@ -54,10 +55,18 @@ python -m index.store_faiss index `
 uvicorn retriever.app:app --host 127.0.0.1 --port 8000
 ```
 
-Sample API Call, No Auth Needed:  
+Sample Search API Call, No Auth Needed:  
 ```json
 {
   "query": "hardcoded password github token",
+  "top_k": 5
+}
+```
+
+Sample Answer API Call, No Auth Needed:
+```json
+{
+  "question": "Bandit flagged B307 eval usage. Explain the risk and suggest a minimal patch diff.",
   "top_k": 5
 }
 ```

@@ -17,6 +17,7 @@ import faiss
 
 from index.embed import embed_texts  # uses OpenAI or local fallback
 from retriever.store import load_doc_by_ids, iter_all_docs
+from retriever.llm_orchestrator import orchestrate_answer
 
 
 # -------------------------
@@ -72,6 +73,25 @@ class Hit(BaseModel):
 class SearchResponse(BaseModel):
     query: str
     hits: List[Hit]
+
+
+class AnswerRequest(BaseModel):
+    question: str
+    top_k: int = Field(default=5, ge=1, le=20)
+    filters: Optional[SearchFilters] = None
+
+class CitationOut(BaseModel):
+    doc_id: str
+    file_path: Optional[str] = None
+    line_start: Optional[int] = None
+    line_end: Optional[int] = None
+    rule_id: Optional[str] = None
+    cwe_ids: List[str] = []
+    cve_ids: List[str] = []
+
+class AnswerResponse(BaseModel):
+    answer: str
+    citations: List[CitationOut]
 
 
 # -------------------------
@@ -248,3 +268,32 @@ def search_endpoint(req: SearchRequest, _auth=Depends(require_bearer)):
     hits = hits[: req.top_k]
 
     return SearchResponse(query=req.query, hits=hits)
+
+
+# -------------------------
+# Route
+# -------------------------
+@app.post("/answer", response_model=AnswerResponse)
+def answer_endpoint(req: AnswerRequest, _auth=Depends(require_bearer)):
+    retriever_url = os.getenv("RETRIEVER_URL", "http://127.0.0.1:8000")
+    result = orchestrate_answer(
+        question=req.question,
+        retriever_url=retriever_url,
+        top_k=req.top_k,
+        filters=req.filters.model_dump() if req.filters else None,
+    )
+    return AnswerResponse(
+        answer=result.answer,
+        citations=[
+            CitationOut(
+                doc_id=c.doc_id,
+                file_path=c.file_path,
+                line_start=c.line_start,
+                line_end=c.line_end,
+                rule_id=c.rule_id,
+                cwe_ids=c.cwe_ids,
+                cve_ids=c.cve_ids,
+            )
+            for c in result.citations
+        ],
+    )
