@@ -6,3 +6,9 @@ __pycache__/
 .venv/
 node_modules/
 dist/
+
+# Artifacts
+backend/artifacts/bandit.json
+backend/artifacts/semgrep.json
+backend/artifacts/ingest_meta.json
+backend/data/nvd.json
