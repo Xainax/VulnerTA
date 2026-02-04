@@ -10,3 +10,6 @@ openai
 scikit-learn
 sentence-transformers
 torch
+fastapi[standard]
+uvicorn
+rank-bm25

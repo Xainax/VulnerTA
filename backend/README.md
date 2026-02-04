@@ -5,6 +5,12 @@ RAG Pipeline For VulnerTA
 For testing purposes, using advanced-security-demo repository:
 https://github.com/advanced-security-demo/demo-python
 
+## .env
+```ps1
+OPENAI_API_KEY="insert OpenAI API key here"  
+INDEX_DIR="local_index"
+```
+
 ### Ingest
 ```ps1
 python -m ingest.ingest_repo `
@@ -43,7 +49,20 @@ python -m index.store_faiss index `
   --out-dir local_index
 ```
 
-## To Run Tests
+### Run the API
+```ps1
+uvicorn retriever.app:app --host 127.0.0.1 --port 8000
+```
+
+Sample API Call, No Auth Needed:  
+```json
+{
+  "query": "hardcoded password github token",
+  "top_k": 5
+}
+```
+
+### To Run Tests
 ```ps1
 py -m pytest -q
 ```
