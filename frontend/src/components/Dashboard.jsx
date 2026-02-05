@@ -1,57 +1,146 @@
 import React, { useState } from "react";
 
 export default function Dashboard() {
-  const [repoLink, setRepoLink] = useState("");
-  const [scanResult, setScanResult] = useState(null);
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleScan = async () => {
-    if (!repoLink) return;
+  const handleSearch = async () => {
+    if (!query.trim()) return;
+
     setLoading(true);
     setError("");
+
     try {
-      const res = await fetch("http://127.0.0.1:8000/scan", {
+      const res = await fetch("http://127.0.0.1:8000/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repo_link: repoLink }),
+        body: JSON.stringify({
+          query,
+          top_k: 10
+        })
       });
-      if (!res.ok) throw new Error("Scan failed");
+
+      if (!res.ok) throw new Error("Search failed");
+
       const data = await res.json();
-      setScanResult(data);
+      setResults(data.hits || []);
     } catch (e) {
       setError(e.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
-    <div style={{ padding: "2rem" }}>
-      <h1>VulnerTA Dashboard</h1>
-      <div style={{ marginTop: "1rem" }}>
+    <div style={{ padding: "2rem", maxWidth: 1100, margin: "auto" }}>
+      <h1>VulnerTA — AI Vulnerability Search</h1>
+
+      <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
         <input
           type="text"
-          placeholder="Enter GitHub repo URL"
-          value={repoLink}
-          onChange={(e) => setRepoLink(e.target.value)}
-          style={{ width: "300px", marginRight: "1rem" }}
+          placeholder="Search vulnerabilities, CVEs, CWEs, code patterns..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+          style={{
+            flex: 1,
+            padding: 12,
+            fontSize: 16,
+            borderRadius: 6,
+            border: "1px solid #ccc"
+          }}
         />
-        <button onClick={handleScan}>Scan Repo</button>
+        <button
+          onClick={handleSearch}
+          style={{
+            padding: "12px 18px",
+            fontSize: 16,
+            borderRadius: 6,
+            background: "black",
+            color: "white",
+            border: "none"
+          }}
+        >
+          Search
+        </button>
       </div>
 
-      {loading && <p>Scanning...</p>}
+      {loading && <p style={{ marginTop: 16 }}>Searching...</p>}
       {error && <p style={{ color: "red" }}>{error}</p>}
-      {scanResult && (
-        <div style={{ marginTop: "2rem" }}>
-          <h2>Scan Result for {scanResult.repo}</h2>
-          <p>Python files found: {scanResult.python_files}</p>
-          <ul>
-            {scanResult.files.map((file) => (
-              <li key={file.path}>{file.path} ({file.size} bytes)</li>
-            ))}
-          </ul>
-        </div>
-      )}
+
+      <div style={{ marginTop: 24 }}>
+        {results.map((hit, i) => (
+          <div
+            key={i}
+            style={{
+              border: "1px solid #ddd",
+              borderRadius: 8,
+              padding: 16,
+              marginBottom: 16
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <strong>{hit.meta?.file_path}</strong>
+              <span
+                style={{
+                  color:
+                    hit.meta?.severity?.includes("high") ? "red" :
+                    hit.meta?.severity?.includes("medium") ? "orange" : "green"
+                }}
+              >
+                {hit.meta?.severity}
+              </span>
+            </div>
+
+            <div style={{ fontSize: 13, color: "#555", marginTop: 4 }}>
+              Tool: {hit.meta?.tool} | Rule: {hit.meta?.rule_id}
+            </div>
+
+            <pre
+              style={{
+                background: "#1e1e1e",
+                color: "#f5f5f5",
+                padding: 12,
+                borderRadius: 6,
+                marginTop: 10,
+                fontSize: 13,
+                overflowX: "auto",
+              }}
+            >
+              {hit.text}
+            </pre>
+
+            <div style={{ marginTop: 10 }}>
+              {hit.meta?.cwe_ids?.map((cwe) => (
+                <span
+                  key={cwe}
+                  style={{
+                    background: "#ffe5e5",
+                    color: "#b00020",
+                    padding: "4px 8px",
+                    borderRadius: 6,
+                    marginRight: 6,
+                    fontSize: 12
+                  }}
+                >
+                  {cwe}
+                </span>
+              ))}
+            </div>
+
+            <div style={{ marginTop: 8, fontSize: 12, color: "#444" }}>
+              Related CVEs: {hit.meta?.cve_ids?.slice(0, 5).join(", ")}
+            </div>
+
+            <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
+              <button>Explain Risk</button>
+              <button>Generate Patch</button>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

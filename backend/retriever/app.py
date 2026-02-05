@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi import Depends, FastAPI, HTTPException, Header
 from pydantic import BaseModel, Field
 
@@ -98,6 +99,13 @@ class AnswerResponse(BaseModel):
 # App + global state
 # -------------------------
 app = FastAPI(title="VulnerTA Retriever API", version="0.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # allow all for dev
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 STATE: Dict[str, Any] = {}
 
