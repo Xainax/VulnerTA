@@ -6,11 +6,19 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const [answerLoading, setAnswerLoading] = useState(false);
+  const [answerError, setAnswerError] = useState("");
+  const [answer, setAnswer] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+
   const handleSearch = async () => {
     if (!query.trim()) return;
 
     setLoading(true);
     setError("");
+    setResults([]);
+    setAnswer(null);
+    setShowModal(false);
 
     try {
       const res = await fetch("http://127.0.0.1:8000/search", {
@@ -30,6 +38,32 @@ export default function Dashboard() {
       setError(e.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleExplainRisk = async (hit) => {
+    setAnswerLoading(true);
+    setAnswerError("");
+    setAnswer(null);
+    setShowModal(true);
+
+    try {
+      const question = `Bandit flagged ${hit.meta.rule_id} in ${hit.meta.file_path}:${hit.meta.line_start}-${hit.meta.line_end}. Explain the risk and suggest a minimal patch diff.`;
+
+      const res = await fetch("http://127.0.0.1:8000/answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question, top_k: 5 })
+      });
+
+      if (!res.ok) throw new Error("Failed to get answer");
+
+      const data = await res.json();
+      setAnswer(data);
+    } catch (e) {
+      setAnswerError(e.message);
+    } finally {
+      setAnswerLoading(false);
     }
   };
 
@@ -70,6 +104,7 @@ export default function Dashboard() {
       {loading && <p style={{ marginTop: 16 }}>Searching...</p>}
       {error && <p style={{ color: "red" }}>{error}</p>}
 
+      {/* Search results */}
       <div style={{ marginTop: 24 }}>
         {results.map((hit, i) => (
           <div
@@ -86,8 +121,8 @@ export default function Dashboard() {
               <span
                 style={{
                   color:
-                    hit.meta?.severity?.includes("high") ? "red" :
-                    hit.meta?.severity?.includes("medium") ? "orange" : "green"
+                    hit.meta?.severity?.toLowerCase().includes("high") ? "red" :
+                    hit.meta?.severity?.toLowerCase().includes("medium") ? "orange" : "green"
                 }}
               >
                 {hit.meta?.severity}
@@ -107,6 +142,9 @@ export default function Dashboard() {
                 marginTop: 10,
                 fontSize: 13,
                 overflowX: "auto",
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+                fontFamily: "monospace",
               }}
             >
               {hit.text}
@@ -135,12 +173,79 @@ export default function Dashboard() {
             </div>
 
             <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
-              <button>Explain Risk</button>
+              <button onClick={() => handleExplainRisk(hit)}>Explain Risk</button>
               <button>Generate Patch</button>
             </div>
           </div>
         ))}
       </div>
+
+      {/* Modal */}
+      {showModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            background: "rgba(0,0,0,0.6)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 9999
+          }}
+          onClick={() => setShowModal(false)}
+        >
+          <div
+            style={{
+              background: "#1e1e1e",
+              color: "#f5f5f5",
+              padding: 24,
+              borderRadius: 10,
+              width: "80%",
+              maxHeight: "80%",
+              overflowY: "auto",
+              boxShadow: "0 0 20px rgba(0,0,0,0.5)"
+            }}
+            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside
+          >
+            <button
+              onClick={() => setShowModal(false)}
+              style={{
+                float: "right",
+                background: "red",
+                color: "white",
+                border: "none",
+                borderRadius: 6,
+                padding: "4px 10px",
+                cursor: "pointer",
+                marginBottom: 16
+              }}
+            >
+              Close
+            </button>
+
+            {answerLoading && <p>Generating explanation...</p>}
+            {answerError && <p style={{ color: "red" }}>{answerError}</p>}
+            {answer && (
+              <>
+                <h3>Explanation:</h3>
+                <p>{answer.answer}</p>
+
+                <h4>Citations:</h4>
+                <ul>
+                  {answer.citations.map((c) => (
+                    <li key={c.doc_id}>
+                      {c.file_path}:{c.line_start}-{c.line_end} | {c.rule_id} | CWEs: {c.cwe_ids.join(", ")} | CVEs: {c.cve_ids.join(", ")}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
