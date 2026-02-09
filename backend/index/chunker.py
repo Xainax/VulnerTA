@@ -250,7 +250,7 @@ def build_chunks_for_repo(
     all_code_chunks: List[Chunk] = []
 
     for pyfile in repo_root.rglob("*.py"):
-        # ignore venvs or large vendor dirs if you want:
+        # ignore venvs or large vendor dirs
         if "/.venv/" in _norm_path(str(pyfile)) or "/venv/" in _norm_path(str(pyfile)):
             continue
         all_code_chunks.extend(chunk_python_file(pyfile, repo_root, halo_lines=halo_lines))
