@@ -1,4 +1,3 @@
-# index/chunker.py
 from __future__ import annotations
 
 import ast
@@ -114,7 +113,6 @@ def _make_chunk(repo_root: Path, rel_path: str, symbol: str, lines: List[str], s
         "line_start": start,
         "line_end": end,
     }
-    # keep "text" clean; retrieval builder will add richer context
     return Chunk(doc_id=doc_id, text=snippet, meta=meta)
 
 

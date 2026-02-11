@@ -98,7 +98,6 @@ def _cvelite_from_cve(cve_block: dict) -> Optional[CVELite]:
 def load_nvd_snapshot(src: Union[str, Path]) -> List[CVELite]:
     """
     Load one or more NVD JSON feed files (2.0 format), return list of CVELite.
-    Supports .json and .json.gz files; 'src' may be a file or a directory.
     """
     out: List[CVELite] = []
     for path in _iter_paths(src):
@@ -211,7 +210,7 @@ def main():
     cves = load_nvd_snapshot(args.src)
     print(f"Loaded {len(cves)} CVEs from {args.src}")
     if len(cves) < args.min:
-        print(f"⚠️  Warning: fewer than {args.min} CVEs — supply more NVD files for a fuller cache.")
+        print(f"Warning: fewer than {args.min} CVEs — supply more NVD files for a fuller cache.")
 
     cache_path = save_cache(args.cache, cves)
     print(f"Wrote cache → {cache_path}")
