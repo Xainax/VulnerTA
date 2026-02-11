@@ -91,10 +91,6 @@ def index_pipeline(
     # 3) Build chunks (Day 5)
     chunks = build_chunks_for_repo(repo_root, findings, halo_lines=4)
 
-    # If your Day 5 returns only retrieval chunks, you can optionally append code chunks:
-    # (Best fix is to return all_code_chunks + retrieval_chunks in Day 5)
-    # Here we accept whatever build_chunks_for_repo returns.
-
     print(f"Built {len(chunks)} chunks total")
 
     # 4) Embed

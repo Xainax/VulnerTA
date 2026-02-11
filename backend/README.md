@@ -52,14 +52,23 @@ python -m index.store_faiss index `
 
 ### Run the API
 ```ps1
+cd backend
 uvicorn retriever.app:app --host 127.0.0.1 --port 8000
 ```
+Go to: http://127.0.0.1:8000/docs
 
 Sample Search API Call, No Auth Needed:  
 ```json
 {
   "query": "hardcoded password github token",
   "top_k": 5
+}
+```
+
+For all vulnerabilities:
+```json
+{
+  "query": ""
 }
 ```
 
