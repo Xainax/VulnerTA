@@ -19,7 +19,7 @@ import faiss
 from index.embed import embed_texts  # uses OpenAI or local fallback
 from retriever.store import load_doc_by_ids, iter_all_docs
 from retriever.llm_orchestrator import orchestrate_answer
-
+from .oauth_handler import router as oauth_router
 
 # -------------------------
 # Config
@@ -106,6 +106,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(oauth_router)
 
 STATE: Dict[str, Any] = {}
 
