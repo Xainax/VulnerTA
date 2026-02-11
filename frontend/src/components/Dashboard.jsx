@@ -100,8 +100,37 @@ export default function Dashboard() {
           Search
         </button>
       </div>
-
-      {loading && <p style={{ marginTop: 16 }}>Searching...</p>}
+      
+{loading && (
+  <div style={{ marginTop: 16, textAlign: "center" }}>
+    <style>{`
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+    `}</style>
+    <svg
+      width="40"
+      height="40"
+      viewBox="0 0 40 40"
+      style={{
+        animation: "spin 1s linear infinite",
+        display: "inline-block"
+      }}
+    >
+      <circle
+        cx="20"
+        cy="20"
+        r="18"
+        fill="none"
+        stroke="black"
+        strokeWidth="2"
+        strokeDasharray="28.3 113.1"
+      />
+    </svg>
+  </div>
+)}
+      
       {error && <p style={{ color: "red" }}>{error}</p>}
 
       {/* Search results */}
