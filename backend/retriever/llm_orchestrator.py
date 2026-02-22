@@ -55,6 +55,18 @@ Requirements:
 - If the issue looks like eval/exec/code injection, prefer safer parsing, whitelisting, or literal_eval if appropriate.
 """
 
+PATCH_SYSTEM_PROMPT = """You are a security code assistant. The user is asking for a patch for a specific vulnerability.
+Your response must have exactly two parts:
+1. Explanation: 2–4 sentences explaining what the vulnerability is and how your patch fixes it (why it is safe).
+2. Patch: A minimal unified diff in a ```diff code block. Include any new imports. Do not put the patch outside the code block."""
+PATCH_USER_TEMPLATE = """User request:
+{question}
+
+Retrieved context (use for citations):
+{context}
+
+Respond with: (1) A short explanation of the vulnerability and how the patch fixes it, then (2) the patch in a ```diff code block."""
+
 
 def format_context(hits: List[Dict[str, Any]], max_chars: int = 8000) -> Tuple[str, List[Citation]]:
     """
@@ -153,6 +165,26 @@ def local_fallback_answer(question: str, hits: List[Dict[str, Any]]) -> str:
     )
 
 
+def local_fallback_patch(question: str, hits: List[Dict[str, Any]]) -> str:
+    """Offline fallback for /patch: response shaped as explanation then ```diff``` block."""
+    joined = " ".join((h.get("text") or "") for h in hits).lower()
+    if " eval" in joined or "dangerous eval" in joined or "b307" in joined:
+        return (
+            "Explanation: The code uses eval(), which can execute attacker-controlled input. "
+            "Replacing it with ast.literal_eval (for literals only) or a whitelist parser removes that risk.\n\n"
+            "```diff\n"
+            "- result = eval(user_input)\n"
+            "+ import ast\n"
+            "+ result = ast.literal_eval(user_input)\n"
+            "```\n"
+        )
+    return (
+        "Explanation: Based on the retrieved context, this finding indicates a potential security issue. "
+        "```diff\n\n"
+        "```\n"
+    )
+
+
 def orchestrate_answer(
     question: str,
     retriever_url: str,
@@ -195,3 +227,38 @@ def orchestrate_answer(
 
     used_doc_ids = [c.doc_id for c in citations]
     return AnswerResult(answer=answer, citations=citations, used_context_doc_ids=used_doc_ids)
+
+
+def orchestrate_patch(
+    question: str,
+    retriever_url: str,
+    top_k: int = 5,
+    filters: Optional[Dict[str, Any]] = None,
+) -> AnswerResult:
+    """
+    For /patch only: retrieve, prompt for explanation + ```diff``` patch, return answer + citations.
+    Response is shaped as explanation text then a ```diff code block (parsed by the patch endpoint).
+    """
+    payload = {
+        "query": question,
+        "top_k": top_k,
+        "dense_k": 25,
+        "sparse_k": 25,
+        "alpha": 0.6,
+        "filters": filters or None,
+    }
+    r = requests.post(f"{retriever_url}/search", json=payload, timeout=15)
+    r.raise_for_status()
+    hits = r.json().get("hits") or []
+
+    context_str, citations = format_context(hits)
+    context_str = redact_secrets(context_str)
+    user_prompt = PATCH_USER_TEMPLATE.format(question=question, context=context_str)
+
+    if os.getenv("OPENAI_API_KEY"):
+        answer = call_openai_chat(PATCH_SYSTEM_PROMPT, user_prompt)
+    else:
+        answer = local_fallback_patch(question, hits)
+
+    answer = redact_secrets(answer)
+    return AnswerResult(answer=answer, citations=citations, used_context_doc_ids=[c.doc_id for c in citations])
