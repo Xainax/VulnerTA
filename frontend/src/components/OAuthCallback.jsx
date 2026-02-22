@@ -1,22 +1,25 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 export default function OAuthCallback() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const hasRun = useRef(false);
 
   useEffect(() => {
+    if (hasRun.current) return;   // Prevent double execution
+    hasRun.current = true;
+
     const handleCallback = async () => {
       try {
-        // Get the authorization code from URL
         const params = new URLSearchParams(window.location.search);
         const code = params.get("code");
 
         if (!code) {
           setError("No authorization code provided");
+          setLoading(false);
           return;
         }
 
-        // Exchange code for access token with your backend
         const response = await fetch("http://127.0.0.1:8000/auth/callback", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -28,12 +31,10 @@ export default function OAuthCallback() {
         }
 
         const data = await response.json();
-        
-        // Store token and user info
+
         localStorage.setItem("token", data.access_token);
         localStorage.setItem("user", JSON.stringify(data.user));
 
-        // Redirect to dashboard
         window.location.href = "/";
       } catch (err) {
         setError(err.message);
