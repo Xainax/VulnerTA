@@ -1,4 +1,3 @@
-# normalize/linker.py
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List, Tuple, Optional
@@ -10,7 +9,7 @@ from normalize.parse_static import Finding, CVELite, ToolName
 # -------------------------
 # Seed rule → CWE mappings
 # -------------------------
-# Keep this small for v0; expand over time.
+# Expand mappings over time
 BANDIT_RULE_TO_CWES: Dict[str, List[str]] = {
     "B307": ["CWE-94", "CWE-95"],   # eval / code injection
     "B303": ["CWE-327"],            # md5/weak crypto
@@ -18,15 +17,13 @@ BANDIT_RULE_TO_CWES: Dict[str, List[str]] = {
     "B501": ["CWE-22"],             # requests without timeout → often treated as reliability; optional
 }
 
-# Semgrep rules vary by config pack; do best-effort by check_id prefix or exact IDs you see.
 SEMGREP_RULE_TO_CWES: Dict[str, List[str]] = {
-    # Example check_id (adjust to what your semgrep config produces)
     "python.lang.security.audit.dangerous-eval": ["CWE-94", "CWE-95"],
     "python.lang.security.injection.command-injection": ["CWE-78"],
 }
 
 # -------------------------
-# Counters (simple in-proc)
+# Counters
 # -------------------------
 @dataclass
 class LinkerCounters:
@@ -87,7 +84,7 @@ def attach_related_cves(
     limit_per_cwe: int = 5,
     max_total: int = 15,
 ) -> List[CVELite]:
-    """Join CVEs by CWE (simple v0 join)."""
+    # join CVEs by CWE
     out: List[CVELite] = []
     seen = set()
     for cwe in cwe_ids:

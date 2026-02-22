@@ -1,20 +1,6 @@
 import argparse, json, subprocess, sys, os, shutil, stat, time
 from pathlib import Path
 
-def run_bytes(cmd, cwd=None, ok_codes={0,1}, env=None):
-    """Run a command, return stdout as bytes. Treat exit codes in ok_codes as success."""
-    env = (os.environ.copy() if env is None else env)
-    # Encourage UTF-8 in children
-    env.setdefault("PYTHONIOENCODING", "utf-8")
-    env.setdefault("PYTHONUTF8", "1")
-    p = subprocess.run(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
-    if p.returncode not in ok_codes:
-        # Decode for logging only (never crash on decode)
-        print(p.stdout.decode("utf-8", "replace"))
-        print(p.stderr.decode("utf-8", "replace"), file=sys.stderr)
-        raise SystemExit(f"Command failed ({p.returncode}): {' '.join(cmd)}")
-    return p.stdout
-
 def rmtree_win_safe(path: Path):
     """Delete a directory tree on Windows even if files are read-only or briefly locked."""
     def onerror(func, p, exc_info):
@@ -67,10 +53,10 @@ def main():
         "commit_sha": args.sha,
         "bandit_file": str(bandit_json),
         "semgrep_file": str(semgrep_json),
-        "generated_by": "day1_ingest",
+        "generated_by": "ingest",
     }
     (out / "ingest_meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
-    print(f"✅ Wrote {bandit_json}, {semgrep_json}, and ingest_meta.json to {out}")
+    print(f"Wrote {bandit_json}, {semgrep_json}, and ingest_meta.json to {out}")
 
 if __name__ == "__main__":
     main()

@@ -3,8 +3,12 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+# from dotenv import load_dotenv
+# load_dotenv()
 
 import numpy as np
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,8 +22,8 @@ import faiss
 
 from index.embed import embed_texts  # uses OpenAI or local fallback
 from retriever.store import load_doc_by_ids, iter_all_docs
-from retriever.llm_orchestrator import orchestrate_answer
-from .oauth_handler import router as oauth_router
+from retriever.llm_orchestrator import orchestrate_answer, orchestrate_patch
+
 
 # -------------------------
 # Config
@@ -92,6 +96,23 @@ class CitationOut(BaseModel):
 
 class AnswerResponse(BaseModel):
     answer: str
+    citations: List[CitationOut]
+
+
+class PatchRequest(BaseModel):
+    rule_id: str
+    file_path: str
+    line_start: Optional[int] = None
+    line_end: Optional[int] = None
+    code_snippet: str
+    vulnerability_description: Optional[str] = None
+    top_k: int = Field(default=5, ge=1, le=20)
+    filters: Optional[SearchFilters] = None
+
+
+class PatchResponse(BaseModel):
+    patch: str
+    explanation: str
     citations: List[CitationOut]
 
 
@@ -175,6 +196,9 @@ def dense_search(query: str, k: int) -> List[Tuple[str, float]]:
     id_map: Dict[str, str] = STATE["id_map"]
 
     emb = embed_texts([query], prefer_openai=True)
+    # If index was built with local embedder (e.g. 384-d) but we now have OpenAI (e.g. 3072-d), use local so search works
+    if emb.vectors.shape[1] != index.d:
+        emb = embed_texts([query], prefer_openai=False)
     q = emb.vectors.astype(np.float32)
     faiss.normalize_L2(q)
 
@@ -243,6 +267,39 @@ def hybrid_merge(
     merged.sort(key=lambda x: x[1], reverse=True)
     return merged[:top_k]
 
+def _parse_patch_response(answer_text: str) -> tuple[str, str]:
+    """
+    Split LLM response into explanation (prose) and patch (code block).
+    Returns (explanation, patch).
+    """
+    explanation = ""
+    patch = ""
+
+    block_match = re.search(r"```(?:diff|patch)?\s*\n(.*?)```", answer_text, re.DOTALL | re.IGNORECASE)
+    if block_match:
+        patch_content = block_match.group(1).strip()
+        patch_content = "\n".join(
+            line[1:] if len(line) > 1 and line[0] == " " and line[1] in "-+" else line
+            for line in patch_content.split("\n")
+        )
+        patch = f"```diff\n{patch_content}\n```" if patch_content else ""
+        before = answer_text[: block_match.start()].strip()
+        explanation = before if before else answer_text.strip()
+        explanation = re.sub(r"^\s*1\.\s+", "", explanation).strip()
+        explanation = re.sub(r"\s+\d+\.\s*$", "", explanation).strip()
+        explanation = re.sub(r"\s*\n\s*\d+\.\s*$", "", explanation).strip()
+
+    else:
+        explanation = answer_text.strip()
+        patch = ""
+
+    if patch and not explanation:
+        explanation = "See patch below."
+    if not explanation and answer_text:
+        explanation = answer_text.strip()
+
+    return explanation, patch
+
 
 # -------------------------
 # Route
@@ -294,6 +351,57 @@ def answer_endpoint(req: AnswerRequest, _auth=Depends(require_bearer)):
     )
     return AnswerResponse(
         answer=result.answer,
+        citations=[
+            CitationOut(
+                doc_id=c.doc_id,
+                file_path=c.file_path,
+                line_start=c.line_start,
+                line_end=c.line_end,
+                rule_id=c.rule_id,
+                cwe_ids=c.cwe_ids,
+                cve_ids=c.cve_ids,
+            )
+            for c in result.citations
+        ],
+    )
+
+
+# -------------------------
+# Route 
+# -------------------------
+@app.post("/patch", response_model=PatchResponse)
+def patch_endpoint(req: PatchRequest, _auth=Depends(require_bearer)):
+    retriever_url = os.getenv("RETRIEVER_URL", "http://127.0.0.1:8000")
+
+    patch_question = (
+        f"Generate a minimal, safe patch for this security finding.\n\n"
+        f"Rule: {req.rule_id}\n"
+        f"File: {req.file_path}\n"
+        f"Lines: {req.line_start}-{req.line_end}\n"
+        f"Vulnerable code:\n{req.code_snippet}\n"
+    )
+    if req.vulnerability_description:
+        patch_question += f"Finding: {req.vulnerability_description}\n"
+
+    patch_question += (
+        "\nRespond in exactly two parts:\n"
+        "1. Explanation: In 2–4 sentences, explain what the vulnerability is and how your patch fixes it (why it is safe).\n"
+        "2. Patch: Provide a minimal unified diff in a ```diff code block. Include any needed new imports. Do not include text outside the code block for the patch.\n"
+    )
+
+    result = orchestrate_patch(
+        question=patch_question,
+        retriever_url=retriever_url,
+        top_k=req.top_k,
+        filters=req.filters.model_dump() if req.filters else None,
+    )
+
+    answer_text = result.answer
+    explanation, patch = _parse_patch_response(answer_text)
+
+    return PatchResponse(
+        patch=patch if patch else "No patch generated",
+        explanation=explanation,
         citations=[
             CitationOut(
                 doc_id=c.doc_id,

@@ -67,6 +67,48 @@ export default function Dashboard() {
     }
   };
 
+  const handleGeneratePatch = async (hit) => {
+  setAnswerLoading(true);
+  setAnswerError("");
+  setAnswer(null);
+  setShowModal(true);
+
+  try {
+    const res = await fetch("http://127.0.0.1:8000/patch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        rule_id: hit.meta?.rule_id ?? "",
+        file_path: hit.meta?.file_path ?? "",
+        line_start: hit.meta?.line_start ?? null,
+        line_end: hit.meta?.line_end ?? null,
+        code_snippet: hit.text ?? "",
+        vulnerability_description: hit.meta?.message ?? "",
+        top_k: 5,
+        filters: {}
+      })
+    });
+
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(`Patch failed (${res.status}): ${text}`);
+    }
+
+    const data = await res.json();
+
+    setAnswer({
+      answer: data.explanation,     
+      patch: data.patch,          
+      citations: data.citations || []
+    });
+  } catch (e) {
+    setAnswerError(e.message);
+  } finally {
+    setAnswerLoading(false);
+  }
+};
+
+
   return (
     <div style={{ padding: "2rem", maxWidth: 1100, margin: "auto" }}>
       <h1>VulnerTA — AI Vulnerability Search</h1>
@@ -203,7 +245,7 @@ export default function Dashboard() {
 
             <div style={{ marginTop: 12, display: "flex", gap: 10 }}>
               <button onClick={() => handleExplainRisk(hit)}>Explain Risk</button>
-              <button>Generate Patch</button>
+              <button onClick={() => handleGeneratePatch(hit)}>Generate Patch</button>
             </div>
           </div>
         ))}
@@ -261,15 +303,26 @@ export default function Dashboard() {
               <>
                 <h3>Explanation:</h3>
                 <p>{answer.answer}</p>
-
-                <h4>Citations:</h4>
-                <ul>
-                  {answer.citations.map((c) => (
-                    <li key={c.doc_id}>
-                      {c.file_path}:{c.line_start}-{c.line_end} | {c.rule_id} | CWEs: {c.cwe_ids.join(", ")} | CVEs: {c.cve_ids.join(", ")}
-                    </li>
-                  ))}
-                </ul>
+                {answer.patch !== undefined && (
+                  <>
+                    <h3>Patch:</h3>
+                    <pre style={{ whiteSpace: "pre-wrap", background: "#111", padding: 12, borderRadius: 8 }}>
+                      {answer.patch}
+                    </pre>
+                  </>
+                )}
+                {answer.patch === undefined && answer.citations?.length > 0 && (
+                  <>
+                    <h4>Citations:</h4>
+                    <ul>
+                      {answer.citations.map((c) => (
+                        <li key={c.doc_id}>
+                          {c.file_path}:{c.line_start}-{c.line_end} | {c.rule_id} | CWEs: {(c.cwe_ids || []).join(", ")} | CVEs: {(c.cve_ids || []).join(", ")}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
               </>
             )}
           </div>

@@ -1,4 +1,3 @@
-# index/store_faiss.py
 from __future__ import annotations
 import argparse, json, os
 from pathlib import Path
@@ -11,10 +10,6 @@ from index.embed import embed_texts
 from index.chunker import build_chunks_for_repo
 from normalize.parse_static import parse_bandit_json, parse_semgrep_json
 from normalize.linker import link_findings
-
-
-def _ensure_dir(p: Path):
-    p.parent.mkdir(parents=True, exist_ok=True)
 
 
 def save_duckdb(db_path: Path, chunks: List[dict]):
@@ -121,9 +116,9 @@ def index_pipeline(
         encoding="utf-8",
     )
 
-    print(f"✅ Wrote FAISS index: {faiss_path}")
-    print(f"✅ Wrote DuckDB store: {db_path}")
-    print(f"✅ Wrote id map: {out_dir / 'id_map.json'}")
+    print(f"Wrote FAISS index: {faiss_path}")
+    print(f"Wrote DuckDB store: {db_path}")
+    print(f"Wrote id map: {out_dir / 'id_map.json'}")
 
 
 def search(
