@@ -4,7 +4,7 @@ import FileExplorer from "./FileExplorer";
 
 export default function Dashboard() {
   const [selectedRepo, setSelectedRepo] = useState(null);
-  const [view, setView] = useState("selector"); // selector | explorer | search
+  const [view, setView] = useState("tabs"); // tabs | selector | explorer | search | vuln-search
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -28,7 +28,7 @@ export default function Dashboard() {
   };
 
   const handleBackToSelector = () => {
-    setView("selector");
+    setView("tabs");
     setSelectedRepo(null);
     setSelectedFile(null);
   };
@@ -152,10 +152,359 @@ export default function Dashboard() {
 
   // Repository Selector View
   if (view === "selector") {
-    return <RepositorySelector onSelectRepo={handleSelectRepo} />;
+    return <RepositorySelector onSelectRepo={handleSelectRepo} onBack={() => setView("tabs")} />;
   }
 
-  // Explorer/Search View
+  // Standalone Vulnerability Search View
+  if (view === "vuln-search") {
+    return (
+      <div style={{ minHeight: "100vh" }}>
+        {/* Top Navigation */}
+        <div style={{
+          backgroundColor: '#1a1a1a',
+          color: 'white',
+          padding: '1rem 2rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <h1 style={{ margin: 0, fontSize: '1.3rem' }}>VulnerTA</h1>
+          <button
+            onClick={() => setView("tabs")}
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: '#666',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            ← Back
+          </button>
+        </div>
+
+        {/* Search Content */}
+        <div style={{ padding: '2rem' }}>
+          <div style={{ maxWidth: "1100px", margin: "auto" }}>
+            <h1>AI Vulnerability Search</h1>
+            <p style={{ color: "#666", marginBottom: "2rem" }}>
+              Search across vulnerability databases, CVEs, and code patterns
+            </p>
+
+            <div style={{ display: "flex", gap: "1rem", marginTop: "1rem", marginBottom: "2rem" }}>
+              <input
+                type="text"
+                placeholder="Search vulnerabilities, CVEs, CWEs, code patterns..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+                style={{
+                  flex: 1,
+                  padding: "0.75rem",
+                  fontSize: "1rem",
+                  borderRadius: "6px",
+                  border: "1px solid #ccc"
+                }}
+              />
+              <button
+                onClick={handleSearch}
+                disabled={loading}
+                style={{
+                  padding: "0.75rem 1.5rem",
+                  fontSize: "1rem",
+                  borderRadius: "6px",
+                  backgroundColor: loading ? "#ccc" : "black",
+                  color: "white",
+                  border: "none",
+                  cursor: loading ? "not-allowed" : "pointer"
+                }}
+              >
+                {loading ? "Searching..." : "Search"}
+              </button>
+            </div>
+
+            {loading && (
+              <div style={{ marginTop: "2rem", textAlign: "center" }}>
+                <svg
+                  width="40"
+                  height="40"
+                  viewBox="0 0 40 40"
+                  style={{
+                    animation: "spin 1s linear infinite",
+                    display: "inline-block"
+                  }}
+                >
+                  <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+                  <circle
+                    cx="20"
+                    cy="20"
+                    r="18"
+                    fill="none"
+                    stroke="black"
+                    strokeWidth="2"
+                    strokeDasharray="28.3 113.1"
+                  />
+                </svg>
+              </div>
+            )}
+
+            {error && <p style={{ color: "red", fontSize: "1rem" }}>❌ {error}</p>}
+
+            {/* Search Results */}
+            <div style={{ marginTop: "2rem" }}>
+              {results.map((hit, i) => (
+                <div
+                  key={i}
+                  style={{
+                    border: "1px solid #ddd",
+                    borderRadius: "8px",
+                    padding: "1rem",
+                    marginBottom: "1rem",
+                    backgroundColor: "#f9f9f9"
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <strong style={{ fontSize: "1.1rem" }}>{hit.meta?.file_path}</strong>
+                    <span
+                      style={{
+                        backgroundColor:
+                          hit.meta?.severity?.toLowerCase().includes("high") ? "#ef5350" :
+                          hit.meta?.severity?.toLowerCase().includes("medium") ? "#ffa726" : "#42a5f5",
+                        color: "white",
+                        padding: "0.25rem 0.75rem",
+                        borderRadius: "4px",
+                        fontSize: "0.9rem",
+                        fontWeight: "bold"
+                      }}
+                    >
+                      {hit.meta?.severity}
+                    </span>
+                  </div>
+
+                  <div style={{ fontSize: "0.9rem", color: "#555", marginTop: "0.5rem" }}>
+                    Tool: {hit.meta?.tool} | Rule: {hit.meta?.rule_id} | Lines: {hit.meta?.line_start}-{hit.meta?.line_end}
+                  </div>
+
+                  <pre
+                    style={{
+                      background: "#1e1e1e",
+                      color: "#f5f5f5",
+                      padding: "1rem",
+                      borderRadius: "6px",
+                      marginTop: "1rem",
+                      fontSize: "0.85rem",
+                      overflowX: "auto",
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                      fontFamily: "monospace"
+                    }}
+                  >
+                    {hit.text}
+                  </pre>
+
+                  {hit.meta?.cwe_ids?.length > 0 && (
+                    <div style={{ marginTop: "0.75rem", display: "flex", flexWrap: "wrap", gap: "0.5rem" }}>
+                      {hit.meta?.cwe_ids?.map((cwe) => (
+                        <span
+                          key={cwe}
+                          style={{
+                            background: "#ffe5e5",
+                            color: "#b00020",
+                            padding: "0.25rem 0.5rem",
+                            borderRadius: "4px",
+                            fontSize: "0.8rem"
+                          }}
+                        >
+                          {cwe}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {hit.meta?.cve_ids?.length > 0 && (
+                    <div style={{ marginTop: "0.5rem", fontSize: "0.85rem", color: "#666" }}>
+                      Related CVEs: {hit.meta?.cve_ids?.slice(0, 5).join(", ")}
+                    </div>
+                  )}
+
+                  <div style={{ marginTop: "1rem", display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                    <button
+                      onClick={() => handleExplainRisk(hit)}
+                      style={{
+                        padding: "0.5rem 1rem",
+                        fontSize: "0.9rem",
+                        borderRadius: "4px",
+                        backgroundColor: "#0366d6",
+                        color: "white",
+                        border: "none",
+                        cursor: "pointer"
+                      }}
+                    >
+                       Explain Risk
+                    </button>
+                    <button
+                      onClick={() => handleGeneratePatch(hit)}
+                      style={{
+                        padding: "0.5rem 1rem",
+                        fontSize: "0.9rem",
+                        borderRadius: "4px",
+                        backgroundColor: "#28a745",
+                        color: "white",
+                        border: "none",
+                        cursor: "pointer"
+                      }}
+                    >
+                       Generate Patch
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Answer Modal */}
+            {showModal && (
+              <div
+                style={{
+                  position: "fixed",
+                  top: 0,
+                  left: 0,
+                  width: "100vw",
+                  height: "100vh",
+                  backgroundColor: "rgba(0, 0, 0, 0.6)",
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  zIndex: 9999
+                }}
+                onClick={() => setShowModal(false)}
+              >
+                <div
+                  style={{
+                    backgroundColor: "#1e1e1e",
+                    color: "#f5f5f5",
+                    padding: "2rem",
+                    borderRadius: "10px",
+                    width: "80%",
+                    maxHeight: "80vh",
+                    overflowY: "auto",
+                    boxShadow: "0 0 20px rgba(0, 0, 0, 0.5)"
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    onClick={() => setShowModal(false)}
+                    style={{
+                      float: "right",
+                      background: "red",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "6px",
+                      padding: "0.5rem 1rem",
+                      cursor: "pointer",
+                      marginBottom: "1rem"
+                    }}
+                  >
+                    ✕ Close
+                  </button>
+
+                  {answerLoading && <p> Generating explanation...</p>}
+                  {answerError && <p style={{ color: "#ff6b6b" }}>❌ {answerError}</p>}
+                  {answer && (
+                    <>
+                      <h3> Explanation:</h3>
+                      <p style={{ lineHeight: "1.6" }}>{answer.answer}</p>
+                      {answer.patch && (
+                        <>
+                          <h3>Suggested Patch:</h3>
+                          <pre style={{
+                            whiteSpace: "pre-wrap",
+                            background: "#111",
+                            padding: "1rem",
+                            borderRadius: "8px",
+                            overflowX: "auto",
+                            fontSize: "0.85rem"
+                          }}>
+                            {answer.patch}
+                          </pre>
+                        </>
+                      )}
+                      {answer.citations?.length > 0 && (
+                        <>
+                          <h4>Citations:</h4>
+                          <ul style={{ fontSize: "0.9rem", color: "#aaa" }}>
+                            {answer.citations.map((c) => (
+                              <li key={c.doc_id}>
+                                <strong>{c.file_path}</strong>:{c.line_start}-{c.line_end} | {c.rule_id}
+                                {c.cwe_ids?.length > 0 && ` | CWEs: ${c.cwe_ids.join(", ")}`}
+                                {c.cve_ids?.length > 0 && ` | CVEs: ${c.cve_ids.join(", ")}`}
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Top-level tabs view
+  if (view === "tabs") {
+    return (
+      <div style={{ minHeight: "100vh" }}>
+        <div style={{
+          backgroundColor: '#1a1a1a',
+          color: 'white',
+          padding: '2rem'
+        }}>
+          <h1 style={{ margin: '0 0 2rem 0' }}>VulnerTA</h1>
+          <div style={{ display: 'flex', gap: '1rem' }}>
+            <button
+              onClick={() => setView("selector")}
+              style={{
+                padding: '1rem 2rem',
+                fontSize: '1.1rem',
+                borderRadius: '6px',
+                backgroundColor: '#0366d6',
+                color: 'white',
+                border: 'none',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+            >
+              📁 Browse Repositories
+            </button>
+            <button
+              onClick={() => {
+                setView("vuln-search");
+                setQuery("");
+                setResults([]);
+                setError("");
+              }}
+              style={{
+                padding: '1rem 2rem',
+                fontSize: '1.1rem',
+                borderRadius: '6px',
+                backgroundColor: '#28a745',
+                color: 'white',
+                border: 'none',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+            >
+              🔍 Search Vulnerabilities
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   return (
     <div style={{ minHeight: "100vh" }}>
       {/* Header */}
@@ -168,7 +517,7 @@ export default function Dashboard() {
         alignItems: 'center'
       }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: '1.3rem' }}>📚 {selectedRepo?.name}</h1>
+          <h1 style={{ margin: 0, fontSize: '1.3rem' }}> {selectedRepo?.name}</h1>
           <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.9rem', color: '#999' }}>
             {selectedRepo?.owner}
           </p>
@@ -209,7 +558,7 @@ export default function Dashboard() {
             fontWeight: view === "explorer" ? "bold" : "normal"
           }}
         >
-          📁 Code Explorer
+           Code Explorer
         </button>
         <button
           onClick={() => setView("search")}
@@ -224,7 +573,7 @@ export default function Dashboard() {
             fontWeight: view === "search" ? "bold" : "normal"
           }}
         >
-          🔍 Vulnerability Search
+           Vulnerability Search
         </button>
       </div>
 
@@ -397,7 +746,7 @@ export default function Dashboard() {
                         cursor: "pointer"
                       }}
                     >
-                      📋 Explain Risk
+                       Explain Risk
                     </button>
                     <button
                       onClick={() => handleGeneratePatch(hit)}
@@ -411,7 +760,7 @@ export default function Dashboard() {
                         cursor: "pointer"
                       }}
                     >
-                      🔧 Generate Patch
+                       Generate Patch
                     </button>
                     <button
                       onClick={() => openFileWithHighlight(hit)}
@@ -425,7 +774,7 @@ export default function Dashboard() {
                         cursor: "pointer"
                       }}
                     >
-                      👁️ View in Code
+                       View in Code
                     </button>
                   </div>
                 </div>
@@ -478,15 +827,15 @@ export default function Dashboard() {
                     ✕ Close
                   </button>
 
-                  {answerLoading && <p>⏳ Generating explanation...</p>}
+                  {answerLoading && <p> Generating explanation...</p>}
                   {answerError && <p style={{ color: "#ff6b6b" }}>❌ {answerError}</p>}
                   {answer && (
                     <>
-                      <h3>📝 Explanation:</h3>
+                      <h3> Explanation:</h3>
                       <p style={{ lineHeight: "1.6" }}>{answer.answer}</p>
                       {answer.patch && (
                         <>
-                          <h3>🔧 Suggested Patch:</h3>
+                          <h3>Suggested Patch:</h3>
                           <pre style={{
                             whiteSpace: "pre-wrap",
                             background: "#111",

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-export default function RepositorySelector({ onSelectRepo }) {
+export default function RepositorySelector({ onSelectRepo, onBack }) {
   const [repos, setRepos] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -85,16 +85,44 @@ export default function RepositorySelector({ onSelectRepo }) {
   );
 
   return (
-    <div style={{
-      padding: '2rem',
-      maxWidth: '1200px',
-      margin: '0 auto'
-    }}>
-      <h1 style={{ marginTop: 0 }}>📚 Select a Repository</h1>
-      <p style={{ color: '#666' }}>Choose a repository to analyze for vulnerabilities</p>
+    <div style={{ minHeight: '100vh', backgroundColor: '#f9f9f9' }}>
+      {/* Header with Back Button */}
+      <div style={{
+        backgroundColor: '#1a1a1a',
+        color: 'white',
+        padding: '1rem 2rem',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }}>
+        <h1 style={{ margin: 0, fontSize: '1.3rem' }}>📁 Browse Repositories</h1>
+        {onBack && (
+          <button
+            onClick={onBack}
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: '#666',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            ← Back
+          </button>
+        )}
+      </div>
 
-      {/* Search Bar */}
-      <div style={{ marginBottom: '2rem' }}>
+      {/* Main Content */}
+      <div style={{
+        padding: '2rem',
+        maxWidth: '1200px',
+        margin: '0 auto'
+      }}>
+        <p style={{ color: '#666', marginTop: 0 }}>Choose a repository to analyze for vulnerabilities</p>
+
+        {/* Search Bar */}
+        <div style={{ marginBottom: '2rem' }}>
         <input
           type="text"
           placeholder="Search repositories..."
@@ -128,7 +156,7 @@ export default function RepositorySelector({ onSelectRepo }) {
           borderRadius: '6px',
           marginBottom: '1rem'
         }}>
-          <strong>❌ Error:</strong> {error}
+          <strong> Error:</strong> {error}
           <br />
           <button
             onClick={fetchUserRepositories}
@@ -201,7 +229,7 @@ export default function RepositorySelector({ onSelectRepo }) {
                     borderRadius: '4px',
                     color: '#666'
                   }}>
-                    🔒 Private
+                     Private
                   </span>
                 )}
               </div>
@@ -228,12 +256,9 @@ export default function RepositorySelector({ onSelectRepo }) {
               }}>
                 {repo.language && (
                   <span>
-                    💻 {repo.language}
+                     {repo.language}
                   </span>
                 )}
-                <span>
-                  ⭐ {repo.stars}
-                </span>
                 <span>
                   🌳 {repo.defaultBranch}
                 </span>
@@ -276,6 +301,7 @@ export default function RepositorySelector({ onSelectRepo }) {
           <p>No repositories found</p>
         </div>
       )}
+      </div>
     </div>
   );
 }
