@@ -13,3 +13,4 @@ torch
 fastapi[standard]
 uvicorn
 rank-bm25
+requests

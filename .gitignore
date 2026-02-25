@@ -14,3 +14,5 @@ backend/artifacts/semgrep.json
 backend/artifacts/ingest_meta.json
 backend/data/nvd.json
 backend/local_index/
+backend/env
+backend/data/nvd_api.json
