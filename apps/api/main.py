@@ -6,6 +6,9 @@ from dotenv import load_dotenv
 from pathlib import Path
 import os
 
+# our AST-based analyzer
+from backend.analysis.ast_analysis import analyze_files
+
 # Load .env from the project root (two levels up from apps/api/main.py)
 root_dir = Path(__file__).resolve().parents[2]
 dotenv_path = root_dir / ".env"
@@ -42,16 +45,21 @@ def scan_repo(req: ScanRequest):
     if not token:
         raise HTTPException(status_code=500, detail="Missing GITHUB_TOKEN")
 
-    # Fetch Python files from repo
+    # Fetch Python files (including content) from repo
     try:
-        files = fetch_python_files(req.repo_link, token)
+        files = fetch_python_files(req.repo_link, token, fetch_content=True)
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+    # run a lightweight AST analysis over all sources
+    analysis = analyze_files(files)
 
     return {
         "repo": req.repo_link,
         "python_files": len(files),
-        "files": files[:50]
+        # return only first 50 file metadata to keep response small
+        "files": [{"path": f["path"], "size": f.get("size", 0)} for f in files[:50]],
+        "analysis": analysis,
     }
 
 @app.get("/health")

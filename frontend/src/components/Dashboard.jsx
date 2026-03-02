@@ -12,6 +12,11 @@ export default function Dashboard() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [highlightLines, setHighlightLines] = useState([]);
 
+  // new analysis state
+  const [analysis, setAnalysis] = useState(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisError, setAnalysisError] = useState("");
+
   const [answerLoading, setAnswerLoading] = useState(false);
   const [answerError, setAnswerError] = useState("");
   const [answer, setAnswer] = useState(null);
@@ -19,9 +24,27 @@ export default function Dashboard() {
 
   const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://127.0.0.1:8000";
 
-  const handleSelectRepo = (repo) => {
+  const handleSelectRepo = async (repo) => {
     console.log("Selected repo:", repo);
     setSelectedRepo(repo);
+    setAnalysis(null);
+    setAnalysisError("");
+    setAnalysisLoading(true);
+    try {
+      const res = await fetch(`${backendUrl}/scan`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ repo_link: repo.url })
+      });
+      if (!res.ok) throw new Error(`Scan failed (${res.status})`);
+      const data = await res.json();
+      setAnalysis(data.analysis);
+    } catch (e) {
+      setAnalysisError(e.message);
+    } finally {
+      setAnalysisLoading(false);
+    }
+
     setView("explorer");
     setSelectedFile(null);
     setHighlightLines([]);
@@ -581,15 +604,40 @@ export default function Dashboard() {
       <div style={{ padding: '2rem' }}>
         {/* Explorer View */}
         {view === "explorer" && selectedRepo && (
-          <FileExplorer
-            repo={selectedRepo.name}
-            owner={selectedRepo.owner}
-            branch={selectedRepo.defaultBranch}
-            selectedFile={selectedFile}
-            setSelectedFile={setSelectedFile}
-            highlightLines={highlightLines}
-            setHighlightLines={setHighlightLines}
-          />
+          <>
+            {analysisLoading && <p>Analyzing repository for vulnerabilities...</p>}
+            {analysisError && <p style={{color:'red'}}>Error during analysis: {analysisError}</p>}
+            {analysis && (
+              <div style={{ marginBottom: '2rem', maxWidth: '800px' }}>
+                <h2>Analysis Summary</h2>
+                <p>Total Python files scanned: {analysis.files_analyzed}</p>
+                <p><strong>Risk score:</strong> {analysis.risk_score}</p>
+                <div>
+                  {Object.entries(analysis.counts).map(([cat, count]) => {
+                    const max = Math.max(...Object.values(analysis.counts));
+                    const pct = max > 0 ? (count / max) * 100 : 0;
+                    return (
+                      <div key={cat} style={{ marginBottom: '0.5rem' }}>
+                        <strong>{cat.replace(/_/g,' ')}</strong>: {count}
+                        <div style={{ background: '#eee', width: '100%', height: '8px', borderRadius:'4px', overflow:'hidden' }}>
+                          <div style={{ background: '#4287f5', width: `${pct}%`, height: '100%' }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            <FileExplorer
+              repo={selectedRepo.name}
+              owner={selectedRepo.owner}
+              branch={selectedRepo.defaultBranch}
+              selectedFile={selectedFile}
+              setSelectedFile={setSelectedFile}
+              highlightLines={highlightLines}
+              setHighlightLines={setHighlightLines}
+            />
+          </>
         )}
 
         {/* Search View */}

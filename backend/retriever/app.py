@@ -1,6 +1,18 @@
 # backend/retriever/app.py
 from __future__ import annotations
 
+# ensure necessary directories are on sys.path so sibling packages
+# (`apps` and the backend "namespace" such as `index`) are importable when
+# running uvicorn from either the backend directory or the workspace root.
+import sys
+from pathlib import Path
+# workspace root is two levels above this file (backend/retriever -> backend -> root)
+root_dir = Path(__file__).resolve().parents[2]
+backend_dir = root_dir / "backend"
+for p in (str(backend_dir), str(root_dir)):
+    if p not in sys.path:
+        sys.path.insert(0, p)
+
 import json
 import os
 import re
@@ -170,6 +182,17 @@ def health():
         "index_dir": str(INDEX_DIR),
         "docs_loaded": len(STATE.get("bm25_docs", []))
     }
+
+# ------------------------------------------------------------------
+# Merge scan endpoint from the main API so a single uvicorn command works
+# ------------------------------------------------------------------
+from apps.api.main import scan_repo, ScanRequest
+
+# re‑expose the same path and request model
+@app.post("/scan")
+def scan_repo_proxy(req: ScanRequest):
+    # simply delegate to the original handler
+    return scan_repo(req)
 
 
 # -------------------------
