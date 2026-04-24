@@ -26,22 +26,29 @@ export default function Dashboard() {
 
   const handleSelectRepo = async (repo) => {
     console.log("Selected repo:", repo);
+    console.log("Backend URL:", backendUrl);
     setSelectedRepo(repo);
     setAnalysis(null);
     setAnalysisError("");
     setAnalysisLoading(true);
     try {
+      console.log("Starting scan request...");
       const res = await fetch(`${backendUrl}/scan`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ repo_link: repo.url })
       });
+      console.log("Scan response status:", res.status);
       if (!res.ok) throw new Error(`Scan failed (${res.status})`);
       const data = await res.json();
+      console.log("Scan response data:", data);
       setAnalysis(data.analysis);
+      console.log("Analysis set successfully");
     } catch (e) {
+      console.error("Scan error:", e);
       setAnalysisError(e.message);
     } finally {
+      console.log("Setting analysisLoading to false");
       setAnalysisLoading(false);
     }
 
@@ -615,26 +622,101 @@ export default function Dashboard() {
         {/* Explorer View */}
         {view === "explorer" && selectedRepo && (
           <>
-            {analysisLoading && <p>Analyzing repository for vulnerabilities...</p>}
+            {analysisLoading && (
+              <div style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                width: '100vw',
+                height: '100vh',
+                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                alignItems: 'center',
+                zIndex: 9999,
+                color: 'white'
+              }}>
+                <div style={{ textAlign: 'center' }}>
+                  <svg
+                    width="60"
+                    height="60"
+                    viewBox="0 0 40 40"
+                    style={{
+                      animation: "spin 1s linear infinite",
+                      display: "block",
+                      margin: "0 auto 1.5rem"
+                    }}
+                  >
+                    <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
+                    <circle
+                      cx="20"
+                      cy="20"
+                      r="18"
+                      fill="none"
+                      stroke="white"
+                      strokeWidth="3"
+                      strokeDasharray="28.3 113.1"
+                    />
+                  </svg>
+                  <h2 style={{ margin: '0 0 1rem 0', fontSize: '1.5rem' }}>Analyzing Repository</h2>
+                  <p style={{ margin: 0, fontSize: '1.1rem', opacity: 0.9 }}>
+                    Scanning {selectedRepo.name} for security vulnerabilities...
+                  </p>
+                  <p style={{ margin: '1rem 0 0 0', fontSize: '0.9rem', opacity: 0.7 }}>
+                    This may take a few moments depending on repository size.
+                  </p>
+                </div>
+              </div>
+            )}
             {analysisError && <p style={{color:'red'}}>Error during analysis: {analysisError}</p>}
             {analysis && (
               <div style={{ marginBottom: '2rem', maxWidth: '800px' }}>
                 <h2>Analysis Summary</h2>
-                <p>Total Python files scanned: {analysis.files_analyzed}</p>
-                <p><strong>Risk score:</strong> {analysis.risk_score}</p>
-                <div>
-                  {Object.entries(analysis.counts).map(([cat, count]) => {
-                    const max = Math.max(...Object.values(analysis.counts));
-                    const pct = max > 0 ? (count / max) * 100 : 0;
-                    return (
-                      <div key={cat} style={{ marginBottom: '0.5rem' }}>
-                        <strong>{cat.replace(/_/g,' ')}</strong>: {count}
-                        <div style={{ background: '#eee', width: '100%', height: '8px', borderRadius:'4px', overflow:'hidden' }}>
-                          <div style={{ background: '#4287f5', width: `${pct}%`, height: '100%' }} />
+                <div style={{ display: 'flex', gap: '2rem', marginBottom: '1rem' }}>
+                  <div>
+                    <h3>AST Analysis</h3>
+                    <p>Files analyzed: {analysis.ast?.files_analyzed || 0}</p>
+                    <p>Risk score: {analysis.ast?.risk_score || 0}</p>
+                  </div>
+                  <div>
+                    <h3>PyCFG Analysis</h3>
+                    <p>Files analyzed: {analysis.pycfg?.files_analyzed || 0}</p>
+                    <p>Risk score: {analysis.pycfg?.risk_score || 0}</p>
+                  </div>
+                </div>
+                <h3>Vulnerability Counts</h3>
+                <div style={{ display: 'flex', gap: '2rem' }}>
+                  <div>
+                    <h4>AST Findings</h4>
+                    {analysis.ast?.counts && Object.entries(analysis.ast.counts).map(([cat, count]) => {
+                      const max = Math.max(...Object.values(analysis.ast.counts));
+                      const pct = max > 0 ? (count / max) * 100 : 0;
+                      return (
+                        <div key={cat} style={{ marginBottom: '0.5rem' }}>
+                          <strong>{cat.replace(/_/g,' ')}</strong>: {count}
+                          <div style={{ background: '#eee', width: '100%', height: '8px', borderRadius:'4px', overflow:'hidden' }}>
+                            <div style={{ background: '#4287f5', width: `${pct}%`, height: '100%' }} />
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
+                  <div>
+                    <h4>PyCFG Findings</h4>
+                    {analysis.pycfg?.counts && Object.entries(analysis.pycfg.counts).map(([cat, count]) => {
+                      const max = Math.max(...Object.values(analysis.pycfg.counts));
+                      const pct = max > 0 ? (count / max) * 100 : 0;
+                      return (
+                        <div key={cat} style={{ marginBottom: '0.5rem' }}>
+                          <strong>{cat.replace(/_/g,' ')}</strong>: {count}
+                          <div style={{ background: '#eee', width: '100%', height: '8px', borderRadius:'4px', overflow:'hidden' }}>
+                            <div style={{ background: '#ff9800', width: `${pct}%`, height: '100%' }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             )}

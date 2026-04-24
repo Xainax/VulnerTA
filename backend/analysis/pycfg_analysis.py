@@ -31,10 +31,9 @@ def analyze_code(code: str, filename: str = "<string>") -> Dict[str, Any]:
     except SyntaxError:
         return {}
 
-    builder = _CFGBuilder(code)
-    entry_id = builder.build(tree)
-    analyzer = _PyCFGAnalyzer(code, builder.nodes, builder.edges, entry_id)
-    return analyzer.analyze(filename=filename)
+    # Find all function definitions in the code
+    analyzer = _CodeAnalyzer(code, filename)
+    return analyzer.analyze(tree)
 
 
 def analyze_files(files: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -66,6 +65,70 @@ def analyze_files(files: List[Dict[str, Any]]) -> Dict[str, Any]:
         "files": file_results,
         "findings": findings,
     }
+
+
+class _CodeAnalyzer:
+    """Analyze Python code by examining each function's CFG."""
+    
+    def __init__(self, code: str, filename: str = "<string>"):
+        self.code = code
+        self.filename = filename
+    
+    def analyze(self, tree: ast.Module) -> Dict[str, Any]:
+        """Analyze all functions in the module."""
+        total = {"tainted_flows": 0, "eval_exec": 0, "unsafe_writes": 0}
+        flows: List[Finding] = []
+        eval_calls: List[Finding] = []
+        unsafe_writes: List[Finding] = []
+        risk_score = 0
+        
+        # Analyze each function definition
+        for node in tree.body:
+            if isinstance(node, ast.FunctionDef):
+                result = self._analyze_function(node)
+                total["tainted_flows"] += result["counts"]["tainted_flows"]
+                total["eval_exec"] += result["counts"]["eval_exec"]
+                total["unsafe_writes"] += result["counts"]["unsafe_writes"]
+                flows.extend(result.get("flows", []))
+                eval_calls.extend(result.get("eval_exec_calls", []))
+                unsafe_writes.extend(result.get("unsafe_writes", []))
+                risk_score += result["risk"]
+        
+        return {
+            "file": self.filename,
+            "counts": total,
+            "risk": risk_score,
+            "flows": flows,
+            "eval_exec_calls": eval_calls,
+            "unsafe_writes": unsafe_writes,
+            "cfg": {"nodes": [], "edges": []},  # Simplified for now
+        }
+    
+    def _analyze_function(self, func_node: ast.FunctionDef) -> Dict[str, Any]:
+        """Analyze a single function's body."""
+        if not func_node.body:
+            return {
+                "counts": {"tainted_flows": 0, "eval_exec": 0, "unsafe_writes": 0},
+                "risk": 0,
+                "flows": [],
+                "eval_exec_calls": [],
+                "unsafe_writes": [],
+            }
+        
+        builder = _CFGBuilder(self.code)
+        entry_id, _ = builder._build_block(func_node.body, next_id=None)
+        
+        if entry_id is None:
+            return {
+                "counts": {"tainted_flows": 0, "eval_exec": 0, "unsafe_writes": 0},
+                "risk": 0,
+                "flows": [],
+                "eval_exec_calls": [],
+                "unsafe_writes": [],
+            }
+        
+        analyzer = _PyCFGAnalyzer(self.code, builder.nodes, builder.edges, entry_id)
+        return analyzer.analyze(filename=f"{self.filename}::{func_node.name}")
 
 
 class _CFGBuilder:
@@ -102,7 +165,17 @@ class _CFGBuilder:
         current_next = next_id
 
         for stmt in reversed(stmts):
-            if isinstance(stmt, ast.If):
+            if isinstance(stmt, ast.FunctionDef):
+                # Create a node for the function definition and analyze its body
+                func_id = self._add_node(stmt)
+                if stmt.body:
+                    body_entry, body_exits = self._build_block(stmt.body, None)  # Functions don't have a next statement
+                    if body_entry is not None:
+                        self._add_edge(func_id, body_entry, "body")
+                entry_id = func_id
+                exit_ids = [func_id]
+                current_next = func_id
+            elif isinstance(stmt, ast.If):
                 cond_id = self._add_node(stmt)
                 then_entry, then_exits = self._build_block(stmt.body, current_next)
                 else_entry, else_exits = self._build_block(stmt.orelse, current_next) if stmt.orelse else (current_next, [current_next] if current_next is not None else [])
@@ -158,7 +231,7 @@ class _PyCFGAnalyzer:
     def analyze(self, filename: str = "<string>") -> Dict[str, Any]:
         state_origins: List[Dict[str, Set[int]]] = [dict() for _ in self.nodes]
         worklist = [self.entry_id] if self.entry_id is not None else []
-        seen: Set[int] = set()
+        visited: Set[int] = set()
 
         flows: List[Finding] = []
         eval_calls: List[Finding] = []
@@ -166,16 +239,17 @@ class _PyCFGAnalyzer:
 
         while worklist:
             node_id = worklist.pop(0)
-            if node_id is None:
+            if node_id is None or node_id in visited:
                 continue
+            visited.add(node_id)
             node = self.nodes[node_id]
             incoming = self._merge_predecessor_states(node_id, state_origins)
             updated = self._process_node(node, incoming, flows, eval_calls, unsafe_writes)
             if updated:
                 state_origins[node_id] = incoming
-                for succ in self.successors.get(node_id, []):
-                    if succ not in worklist:
-                        worklist.append(succ)
+            for succ in self.successors.get(node_id, []):
+                if succ not in visited:
+                    worklist.append(succ)
 
         counts = {
             "tainted_flows": len(flows),
@@ -226,36 +300,53 @@ class _PyCFGAnalyzer:
         original_state = {k: set(v) for k, v in state.items()}
         stmt = node.ast_node
 
+        # Handle assignment statements - mark variables as tainted if RHS has tainted sources
         if isinstance(stmt, ast.Assign):
             origins = self._expr_origins(stmt.value, state, node.id)
             for target in stmt.targets:
                 for name in _extract_target_names(target):
                     if origins:
-                        state.setdefault(name, set()).update(origins)
+                        state[name] = origins
+        
+        # Handle augmented assignment (+=, etc)
         elif isinstance(stmt, ast.AugAssign):
             origins = self._expr_origins(stmt.value, state, node.id)
             target_names = _extract_target_names(stmt.target)
-            if origins:
-                for name in target_names:
-                    state.setdefault(name, set()).update(origins)
-        elif isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call):
-            self._check_call(stmt.value, node, state, flows, eval_calls)
-        elif isinstance(stmt, ast.Call):
-            self._check_call(stmt, node, state, flows, eval_calls)
+            current_origins = set()
+            for name in target_names:
+                current_origins.update(state.get(name, set()))
+            current_origins.update(origins)
+            for name in target_names:
+                if current_origins:
+                    state[name] = current_origins
+        
+        # Handle with statements (context managers like open())
         elif isinstance(stmt, ast.With):
             for item in stmt.items:
                 if item.optional_vars is not None:
                     origins = self._expr_origins(item.context_expr, state, node.id)
                     for name in _extract_target_names(item.optional_vars):
                         if origins:
-                            state.setdefault(name, set()).update(origins)
+                            state[name] = origins
 
+        # Check for calls in different contexts
         if isinstance(stmt, ast.Assign) and isinstance(stmt.value, ast.Call):
             self._check_call(stmt.value, node, state, flows, eval_calls)
+        elif isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call):
+            self._check_call(stmt.value, node, state, flows, eval_calls)
+        elif isinstance(stmt, ast.Call):
+            self._check_call(stmt, node, state, flows, eval_calls)
+        elif isinstance(stmt, ast.With):
+            # Check calls in with statement context expressions
+            for item in stmt.items:
+                if isinstance(item.context_expr, ast.Call):
+                    self._check_call(item.context_expr, node, state, flows, eval_calls)
 
-        if self._is_unsafe_write(stmt):
+        # Check for unsafe file writes
+        if self._is_unsafe_write(stmt, state, node.id):
             unsafe_writes.append(_make_finding(stmt, "unsafe_write", _get_source_segment(self.code, stmt)))
 
+        # Return True if state changed
         return state != original_state
 
     def _expr_origins(self, expr: ast.AST, state: Dict[str, Set[int]], current_node_id: int) -> Set[int]:
@@ -265,6 +356,11 @@ class _PyCFGAnalyzer:
         elif isinstance(expr, ast.Call):
             if _is_source_call(expr):
                 origins.add(current_node_id)
+            # Check if this is a method call on a tainted object
+            if isinstance(expr.func, ast.Attribute):
+                # E.g., user_input.replace(...) - the .replace() call preserves taint
+                origins.update(self._expr_origins(expr.func.value, state, current_node_id))
+            # Check arguments
             for arg in expr.args:
                 origins.update(self._expr_origins(arg, state, current_node_id))
             for kw in expr.keywords:
@@ -272,7 +368,7 @@ class _PyCFGAnalyzer:
         elif isinstance(expr, ast.Attribute):
             origins.update(self._expr_origins(expr.value, state, current_node_id))
         elif isinstance(expr, ast.Subscript):
-            if _is_sys_argv(expr) or _is_os_environ(expr):
+            if _is_source_subscript(expr):
                 origins.add(current_node_id)
             else:
                 origins.update(self._expr_origins(expr.value, state, current_node_id))
@@ -310,7 +406,7 @@ class _PyCFGAnalyzer:
             eval_calls.append(_make_finding(call_node, "eval_exec", name))
             if self._call_has_tainted_arg(call_node, state, node.id):
                 flows.append(self._make_flow(call_node, node, name, state))
-        if name in ("os.system", "subprocess.call", "subprocess.Popen", "subprocess.run"):
+        elif name in ("os.system", "subprocess.call", "subprocess.Popen", "subprocess.run"):
             if self._call_has_tainted_arg(call_node, state, node.id):
                 flows.append(self._make_flow(call_node, node, name, state))
 
@@ -358,16 +454,30 @@ class _PyCFGAnalyzer:
                 queue.append((succ, path + [succ]))
         return [self.nodes[sink_id].code] if self.nodes[sink_id].code else []
 
-    def _is_unsafe_write(self, stmt: ast.AST) -> bool:
+    def _is_unsafe_write(self, stmt: ast.AST, state: Dict[str, Set[int]], current_node_id: int) -> bool:
+        """Check if this statement performs an unsafe file write with tainted filename."""
+        call_node = None
         if isinstance(stmt, ast.Expr) and isinstance(stmt.value, ast.Call):
             call_node = stmt.value
         elif isinstance(stmt, ast.Assign) and isinstance(stmt.value, ast.Call):
             call_node = stmt.value
+        elif isinstance(stmt, ast.With):
+            # Check with statement context managers
+            for item in stmt.items:
+                if isinstance(item.context_expr, ast.Call) and _get_full_call_name(item.context_expr) == "open":
+                    call_node = item.context_expr
+                    break
         else:
             return False
 
-        if _get_full_call_name(call_node) != "open":
+        if call_node is None or _get_full_call_name(call_node) != "open":
             return False
+
+        # Check if filename argument is tainted
+        if call_node.args and self._expr_origins(call_node.args[0], state, current_node_id):
+            return True
+
+        # Check mode
         mode = None
         if len(call_node.args) >= 2:
             arg = call_node.args[1]
@@ -415,7 +525,14 @@ def _extract_target_names(target: ast.AST) -> List[str]:
 
 
 def _is_source_call(node: ast.Call) -> bool:
-    return isinstance(node.func, ast.Name) and node.func.id == "input"
+    """Check if this call is a source of tainted data."""
+    name = _get_full_call_name(node)
+    return name == "input"
+
+
+def _is_source_subscript(node: ast.Subscript) -> bool:
+    """Check if this subscript access is a source of tainted data."""
+    return _is_sys_argv(node) or _is_os_environ(node)
 
 
 def _is_sys_argv(node: ast.Subscript) -> bool:
