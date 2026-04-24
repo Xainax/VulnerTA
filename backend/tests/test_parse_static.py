@@ -1,6 +1,6 @@
 from pathlib import Path
 import json
-from backend.normalize.parse_static import (
+from normalize.parse_static import (
     parse_bandit_json,
     parse_semgrep_json,
     Finding,

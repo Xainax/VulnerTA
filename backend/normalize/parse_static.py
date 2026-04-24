@@ -12,8 +12,6 @@ from pydantic import BaseModel, Field, model_validator
 class ToolName(str, Enum):
     bandit = "bandit"
     semgrep = "semgrep"
-    ast = "ast"
-    pycfg = "pycfg"
 
 
 class Severity(str, Enum):

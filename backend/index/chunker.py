@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from backend.normalize.parse_static import Finding, ToolName
+from normalize.parse_static import Finding, ToolName
 
 
 @dataclass
@@ -272,8 +272,8 @@ def build_chunks_for_repo(
 # -------------------------
 if __name__ == "__main__":
     import argparse, json
-    from backend.normalize.parse_static import parse_bandit_json, parse_semgrep_json
-    from backend.normalize.linker import link_findings
+    from normalize.parse_static import parse_bandit_json, parse_semgrep_json
+    from normalize.linker import link_findings
 
     ap = argparse.ArgumentParser(description="Chunk repo and build retrieval chunks for findings")
     ap.add_argument("--repo-root", default="repo_checkout")
