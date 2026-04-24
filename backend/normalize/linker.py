@@ -4,7 +4,7 @@ from typing import Dict, List, Tuple, Optional
 from pathlib import Path
 import json
 
-from normalize.parse_static import Finding, CVELite, ToolName
+from backend.normalize.parse_static import Finding, CVELite, ToolName
 
 # -------------------------
 # Seed rule → CWE mappings
@@ -67,6 +67,13 @@ def rule_to_cwes(f: Finding) -> List[str]:
         return BANDIT_RULE_TO_CWES.get(rid, [])
     if f.meta.tool == ToolName.semgrep:
         return SEMGREP_RULE_TO_CWES.get(rid, [])
+    if f.meta.tool in (ToolName.ast, ToolName.pycfg):
+        if rid == "eval_exec":
+            return ["CWE-94", "CWE-95"]
+        if rid == "os_command":
+            return ["CWE-78"]
+        if rid == "unsafe_write":
+            return ["CWE-22"]
     return []
 
 def merge_cwes(existing: List[str], new: List[str]) -> List[str]:
@@ -153,7 +160,7 @@ def coverage(findings: List[Finding]) -> float:
 # -------------------------
 if __name__ == "__main__":
     import argparse
-    from normalize.parse_static import parse_bandit_json, parse_semgrep_json
+    from backend.normalize.parse_static import parse_bandit_json, parse_semgrep_json
 
     ap = argparse.ArgumentParser(description="Link Findings to CWE and related CVEs (v0)")
     ap.add_argument("--bandit", default="artifacts/bandit.json")

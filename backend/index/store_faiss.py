@@ -6,10 +6,91 @@ import numpy as np
 
 import duckdb
 
-from index.embed import embed_texts
-from index.chunker import build_chunks_for_repo
-from normalize.parse_static import parse_bandit_json, parse_semgrep_json
-from normalize.linker import link_findings
+from backend.index.embed import embed_texts
+from backend.index.chunker import build_chunks_for_repo
+from backend.normalize.parse_static import (
+    Location,
+    ToolMeta,
+    ToolName,
+    Severity,
+    Confidence,
+    Finding,
+    parse_bandit_json,
+    parse_semgrep_json,
+)
+from backend.normalize.linker import link_findings
+from backend.analysis import analyze_code
+from backend.analysis.ast_analysis import format_flow
+
+
+def _normalize_repo_path(path: Path) -> str:
+    return str(path).replace("\\", "/")
+
+
+def _skip_repo_file(path: Path) -> bool:
+    normalized = _normalize_repo_path(path).lower()
+    return "/.venv/" in normalized or "/venv/" in normalized
+
+
+def build_ast_findings(repo_root: str) -> List[Finding]:
+    repo_root = Path(repo_root).resolve()
+    findings: List[Finding] = []
+
+    for pyfile in repo_root.rglob("*.py"):
+        if _skip_repo_file(pyfile):
+            continue
+
+        code = pyfile.read_text(encoding="utf-8", errors="replace")
+        rel_path = _normalize_repo_path(pyfile.relative_to(repo_root))
+        result = analyze_code(code, filename=rel_path)
+        if not result:
+            continue
+
+        for flow in result.get("flows", []):
+            lineno = int(flow.get("lineno") or 1)
+            sink = flow.get("sink") or "ast_flow"
+            severity = Severity.high if sink in ("eval_exec", "os_command") else Severity.medium
+            message = format_flow(flow)
+            findings.append(
+                Finding(
+                    meta=ToolMeta(
+                        tool=ToolName.ast,
+                        rule_id=sink,
+                        rule_name=None,
+                        severity=severity,
+                        confidence=Confidence.unknown,
+                        tags=["ast", sink],
+                    ),
+                    location=Location(file_path=rel_path, line_start=lineno, line_end=lineno),
+                    message=message,
+                )
+            )
+
+        cfg = result.get("cfg") or {}
+        if result.get("flows") and cfg and isinstance(cfg, dict):
+            node_count = len(cfg.get("nodes", []))
+            edge_count = len(cfg.get("edges", []))
+            message = (
+                f"Control-flow graph analysis for {rel_path}: "
+                f"{node_count} nodes, {edge_count} edges, "
+                f"start_line={cfg.get('start_line')} end_line={cfg.get('end_line')}. "
+                f"Risk score: {result.get('risk')}.")
+            findings.append(
+                Finding(
+                    meta=ToolMeta(
+                        tool=ToolName.pycfg,
+                        rule_id="cfg",
+                        rule_name="pycfg analysis",
+                        severity=Severity.info,
+                        confidence=Confidence.unknown,
+                        tags=["pycfg"],
+                    ),
+                    location=Location(file_path=rel_path, line_start=max(1, int(cfg.get('start_line') or 1)), line_end=max(1, int(cfg.get('end_line') or 1))),
+                    message=message,
+                )
+            )
+
+    return findings
 
 
 def save_duckdb(db_path: Path, chunks: List[dict]):
@@ -78,6 +159,11 @@ def index_pipeline(
         findings += parse_bandit_json(bandit_path)
     if Path(semgrep_path).exists():
         findings += parse_semgrep_json(semgrep_path)
+
+    # 1.5) Analyze repository AST/cfg and add targetted code-flow findings
+    ast_findings = build_ast_findings(repo_root)
+    findings += ast_findings
+    print(f"Discovered {len(ast_findings)} AST/CFG findings from repo analysis")
 
     # 2) Link findings to CWE/CVE
     findings, ctr = link_findings(findings, cve_cache_path=cve_cache)
