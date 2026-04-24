@@ -86,6 +86,13 @@ export default function Dashboard() {
     }
   };
 
+  const buildAnalysisContext = () => {
+    if (!analysis) return "";
+    const astCounts = analysis.ast?.counts || {};
+    const pycfgCounts = analysis.pycfg?.counts || {};
+    return `AST analysis counts: ${JSON.stringify(astCounts)}\nPyCFG analysis counts: ${JSON.stringify(pycfgCounts)}`;
+  };
+
   const handleExplainRisk = async (hit) => {
     setAnswerLoading(true);
     setAnswerError("");
@@ -94,11 +101,12 @@ export default function Dashboard() {
 
     try {
       const question = `Bandit flagged ${hit.meta.rule_id} in ${hit.meta.file_path}:${hit.meta.line_start}-${hit.meta.line_end}. Explain the risk and suggest a minimal patch diff.`;
+      const analysis_context = buildAnalysisContext();
 
       const res = await fetch(`${backendUrl}/answer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, top_k: 5 })
+        body: JSON.stringify({ question, top_k: 5, analysis_context })
       });
 
       if (!res.ok) throw new Error("Failed to get answer");
@@ -119,6 +127,7 @@ export default function Dashboard() {
     setShowModal(true);
 
     try {
+      const analysis_context = buildAnalysisContext();
       const res = await fetch(`${backendUrl}/patch`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -129,6 +138,7 @@ export default function Dashboard() {
           line_end: hit.meta?.line_end ?? null,
           code_snippet: hit.text ?? "",
           vulnerability_description: hit.meta?.message ?? "",
+          analysis_context,
           top_k: 5,
           filters: {}
         })

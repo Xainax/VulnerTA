@@ -94,6 +94,7 @@ class AnswerRequest(BaseModel):
     question: str
     top_k: int = Field(default=5, ge=1, le=20)
     filters: Optional[SearchFilters] = None
+    analysis_context: Optional[str] = None
 
 
 class CitationOut(BaseModel):
@@ -118,6 +119,7 @@ class PatchRequest(BaseModel):
     line_end: Optional[int] = None
     code_snippet: str
     vulnerability_description: Optional[str] = None
+    analysis_context: Optional[str] = None
     top_k: int = Field(default=5, ge=1, le=20)
     filters: Optional[SearchFilters] = None
 
@@ -452,6 +454,7 @@ def answer_endpoint(req: AnswerRequest, _auth=Depends(require_bearer)):
         retriever_url=retriever_url,
         top_k=req.top_k,
         filters=req.filters.model_dump() if req.filters else None,
+        analysis_context=req.analysis_context,
     )
     return AnswerResponse(
         answer=result.answer,
@@ -501,6 +504,7 @@ def patch_endpoint(req: PatchRequest, _auth=Depends(require_bearer)):
         retriever_url=retriever_url,
         top_k=req.top_k,
         filters=req.filters.model_dump() if req.filters else None,
+        analysis_context=req.analysis_context,
     )
 
     answer_text = result.answer

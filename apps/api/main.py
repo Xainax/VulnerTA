@@ -6,8 +6,9 @@ from dotenv import load_dotenv
 from pathlib import Path
 import os
 
-# our AST-based analyzer
-from backend.analysis.ast_analysis import analyze_files
+# our static analyzers
+from backend.analysis.ast_analysis import analyze_files as analyze_files_ast
+from backend.analysis.pycfg_analysis import analyze_files as analyze_files_pycfg
 
 # Load .env from the project root (two levels up from apps/api/main.py)
 root_dir = Path(__file__).resolve().parents[2]
@@ -52,14 +53,18 @@ def scan_repo(req: ScanRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
     # run a lightweight AST analysis over all sources
-    analysis = analyze_files(files)
+    ast_analysis = analyze_files_ast(files)
+    pycfg_analysis = analyze_files_pycfg(files)
 
     return {
         "repo": req.repo_link,
         "python_files": len(files),
         # return only first 50 file metadata to keep response small
         "files": [{"path": f["path"], "size": f.get("size", 0)} for f in files[:50]],
-        "analysis": analysis,
+        "analysis": {
+            "ast": ast_analysis,
+            "pycfg": pycfg_analysis,
+        },
     }
 
 @app.get("/health")

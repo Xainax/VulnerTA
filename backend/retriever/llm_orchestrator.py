@@ -46,6 +46,9 @@ If information is missing, say what you assume and what you cannot verify."""
 USER_TEMPLATE = """User question:
 {question}
 
+Static analysis summary:
+{analysis_context}
+
 Retrieved context (use for citations):
 {context}
 
@@ -61,6 +64,9 @@ Your response must have exactly two parts:
 2. Patch: A minimal unified diff in a ```diff code block. Include any new imports. Do not put the patch outside the code block."""
 PATCH_USER_TEMPLATE = """User request:
 {question}
+
+Static analysis summary:
+{analysis_context}
 
 Retrieved context (use for citations):
 {context}
@@ -190,6 +196,7 @@ def orchestrate_answer(
     retriever_url: str,
     top_k: int = 5,
     filters: Optional[Dict[str, Any]] = None,
+    analysis_context: Optional[str] = None,
 ) -> AnswerResult:
     """
     1) Call /search
@@ -213,9 +220,14 @@ def orchestrate_answer(
     # 2) Format context
     context_str, citations = format_context(hits)
     context_str = redact_secrets(context_str)
+    analysis_context = analysis_context or "No additional static analysis summary provided."
 
     # 3) Prompt
-    user_prompt = USER_TEMPLATE.format(question=question, context=context_str)
+    user_prompt = USER_TEMPLATE.format(
+        question=question,
+        analysis_context=analysis_context,
+        context=context_str,
+    )
 
     # 4) LLM
     if os.getenv("OPENAI_API_KEY"):
@@ -234,6 +246,7 @@ def orchestrate_patch(
     retriever_url: str,
     top_k: int = 5,
     filters: Optional[Dict[str, Any]] = None,
+    analysis_context: Optional[str] = None,
 ) -> AnswerResult:
     """
     For /patch only: retrieve, prompt for explanation + ```diff``` patch, return answer + citations.
@@ -253,7 +266,12 @@ def orchestrate_patch(
 
     context_str, citations = format_context(hits)
     context_str = redact_secrets(context_str)
-    user_prompt = PATCH_USER_TEMPLATE.format(question=question, context=context_str)
+    analysis_context = analysis_context or "No additional static analysis summary provided."
+    user_prompt = PATCH_USER_TEMPLATE.format(
+        question=question,
+        analysis_context=analysis_context,
+        context=context_str,
+    )
 
     if os.getenv("OPENAI_API_KEY"):
         answer = call_openai_chat(PATCH_SYSTEM_PROMPT, user_prompt)
