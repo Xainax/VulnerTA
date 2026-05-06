@@ -170,7 +170,7 @@ def main():
     p_index.add_argument("--repo-root", default="repo_checkout")
     p_index.add_argument("--bandit", default="artifacts/bandit.json")
     p_index.add_argument("--semgrep", default="artifacts/semgrep.json")
-    p_index.add_argument("--cve-cache", default="data/nvd.json")
+    p_index.add_argument("--cve-cache", default="data/nvd_api.json")
     p_index.add_argument("--out-dir", default="local_index")
 
     p_search = sub.add_parser("search", help="Search the index")

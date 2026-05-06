@@ -44,7 +44,7 @@ class LinkerCounters:
 # -------------------------
 # CVE cache helpers
 # -------------------------
-def load_cve_cache(cache_path: str | Path = "data/nvd.json") -> List[CVELite]:
+def load_cve_cache(cache_path: str | Path = "data/nvd_api.json") -> List[CVELite]:
     p = Path(cache_path)
     data = json.loads(p.read_text(encoding="utf-8"))
     return [CVELite(**d) for d in data]
@@ -84,22 +84,50 @@ def attach_related_cves(
     limit_per_cwe: int = 5,
     max_total: int = 15,
 ) -> List[CVELite]:
-    # join CVEs by CWE
-    out: List[CVELite] = []
-    seen = set()
+    """
+    Join CVEs by CWE with:
+      - cross-CWE dedupe
+      - highest severity first
+      - deterministic ordering
+    """
+    collected: Dict[str, CVELite] = {}
+
     for cwe in cwe_ids:
-        for cve in (cwe_to_cves.get(cwe) or [])[:limit_per_cwe]:
-            if cve.cve_id not in seen:
-                out.append(cve)
-                seen.add(cve.cve_id)
-            if len(out) >= max_total:
-                return out
-    return out
+        if not cwe or cwe.startswith("NVD-CWE"):
+            continue
+
+        candidates = cwe_to_cves.get(cwe) or []
+
+        # Sort by severity (highest first, None treated as 0)
+        candidates = sorted(
+            candidates,
+            key=lambda c: c.cvss_v3 or 0.0,
+            reverse=True,
+        )
+
+        for cve in candidates[:limit_per_cwe]:
+            if cve.cve_id not in collected:
+                collected[cve.cve_id] = cve
+
+            if len(collected) >= max_total:
+                break
+
+        if len(collected) >= max_total:
+            break
+
+    # Final deterministic ordering
+    result = sorted(
+        collected.values(),
+        key=lambda c: (c.cvss_v3 or 0.0, c.cve_id),
+        reverse=True,
+    )
+
+    return result[:max_total]
 
 
 def link_findings(
     findings: List[Finding],
-    cve_cache_path: str | Path = "data/nvd.json",
+    cve_cache_path: str | Path = "data/nvd_api.json",
     counters: Optional[LinkerCounters] = None,
 ) -> Tuple[List[Finding], LinkerCounters]:
     """
@@ -158,7 +186,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="Link Findings to CWE and related CVEs (v0)")
     ap.add_argument("--bandit", default="artifacts/bandit.json")
     ap.add_argument("--semgrep", default="artifacts/semgrep.json")
-    ap.add_argument("--cve-cache", default="data/nvd.json")
+    ap.add_argument("--cve-cache", default="data/nvd_api.json")
     args = ap.parse_args()
 
     fs = []

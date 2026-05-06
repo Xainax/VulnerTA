@@ -30,9 +30,20 @@ python -m normalize.parse_static --bandit artifacts/bandit.json --semgrep artifa
 python -m ingest.nvd_loader --src data/raw --cache data/nvd.json --min 500 --print-sample
 ```
 
+### Load NVD API (Full Harvest)
+```ps1
+python -m ingest.nvd_api_loader --mode all --out-cache data/nvd_api.json
+```
+
+### Incremental NVD Harvest (Last 7 Days)
+Example dates:
+```ps1
+python -m ingest.nvd_api_loader --mode incremental --last-mod-start "2025-02-10T00:00:00" --last-mod-end "2025-02-17T00:00:00" --out-cache data/nvd_inc.json
+```
+
 ### Link NVD to Bandit and Semgrep
 ```ps1
-python -m normalize.linker --bandit artifacts/bandit.json --semgrep artifacts/semgrep.json --cve-cache data/nvd.json
+python -m normalize.linker --bandit artifacts/bandit.json --semgrep artifacts/semgrep.json --cve-cache data/nvd_api.json
 ```
 
 ### Chunk repository code
@@ -46,7 +57,7 @@ python -m index.store_faiss index `
   --repo-root repo_checkout `
   --bandit artifacts/bandit.json `
   --semgrep artifacts/semgrep.json `
-  --cve-cache data/nvd.json `
+  --cve-cache data/nvd_api.json `
   --out-dir local_index
 ```
 
