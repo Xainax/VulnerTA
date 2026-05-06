@@ -44,6 +44,9 @@ export default function Dashboard() {
       console.log("Scan response data:", data);
       setAnalysis(data.analysis);
       console.log("Analysis set successfully");
+
+      const analysisContext = buildAnalysisContext(data.analysis);
+      await generateRepoReport(analysisContext);
     } catch (e) {
       console.error("Scan error:", e);
       setAnalysisError(e.message);
@@ -93,11 +96,89 @@ export default function Dashboard() {
     }
   };
 
-  const buildAnalysisContext = () => {
-    if (!analysis) return "";
-    const astCounts = analysis.ast?.counts || {};
-    const pycfgCounts = analysis.pycfg?.counts || {};
-    return `AST analysis counts: ${JSON.stringify(astCounts)}\nPyCFG analysis counts: ${JSON.stringify(pycfgCounts)}`;
+  const formatFindingSummary = (label, findings) => {
+    if (!findings) return `${label}: no findings available.`;
+    const taintedFlows = findings.tainted_flows || [];
+    const evalExec = findings.eval_exec || [];
+    const unsafeWrites = findings.unsafe_writes || [];
+
+    const summarize = (items) => {
+      if (!items.length) return "none";
+      return items
+        .slice(0, 3)
+        .map((item) => `line ${item.lineno || "?"}${item.sink ? ` ${item.sink}` : ""}${item.detail ? ` ${item.detail}` : ""}`)
+        .join("; ");
+    };
+
+    return [
+      `${label}: ${taintedFlows.length} tainted flows, ${evalExec.length} eval/exec calls, ${unsafeWrites.length} unsafe writes`,
+      `  tainted flows: ${summarize(taintedFlows)}`,
+      `  eval/exec: ${summarize(evalExec)}`,
+      `  unsafe writes: ${summarize(unsafeWrites)}`,
+    ].join("\n");
+  };
+
+  const buildAnalysisContext = (analysisData = analysis) => {
+    if (!analysisData) return "";
+
+    const formatTopFiles = (label, files) => {
+      if (!files?.length) return `${label}: no per-file results available.`;
+      const topFiles = files
+        .slice()
+        .sort((a, b) => (b.risk || 0) - (a.risk || 0))
+        .slice(0, 5)
+        .map((file) => {
+          const counts = file.counts || {};
+          return `${file.file}: risk=${file.risk || 0}, tainted_flows=${counts.tainted_flows || 0}, eval_exec=${counts.eval_exec || 0}, unsafe_writes=${counts.unsafe_writes || 0}`;
+        });
+      return `${label}: ${files.length} files analyzed. Top files:\n${topFiles.join("\n")}`;
+    };
+
+    const astSummary = `AST analysis summary:\nFiles analyzed: ${analysisData.ast?.files_analyzed || 0}\nRisk score: ${analysisData.ast?.risk_score || 0}\nCounts: ${JSON.stringify(analysisData.ast?.counts || {})}`;
+    const pycfgSummary = `PyCFG analysis summary:\nFiles analyzed: ${analysisData.pycfg?.files_analyzed || 0}\nRisk score: ${analysisData.pycfg?.risk_score || 0}\nCounts: ${JSON.stringify(analysisData.pycfg?.counts || {})}`;
+
+    return [
+      astSummary,
+      formatTopFiles("AST top files", analysisData.ast?.files),
+      formatFindingSummary("AST findings", analysisData.ast?.findings),
+      pycfgSummary,
+      formatTopFiles("PyCFG top files", analysisData.pycfg?.files),
+      formatFindingSummary("PyCFG findings", analysisData.pycfg?.findings),
+    ].join("\n\n");
+  };
+
+  const generateRepoReport = async (analysis_context) => {
+    setAnswerLoading(true);
+    setAnswerError("");
+    setAnswer(null);
+    setShowModal(true);
+
+    try {
+      const question = "Create a vulnerability report based on the repository scan findings. Summarize the main issues, likely root causes, risk levels, and recommended fixes.";
+      const res = await fetch(`${backendUrl}/answer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question, top_k: 5, analysis_context })
+      });
+
+      const text = await res.text();
+      if (!res.ok) {
+        throw new Error(`Report generation failed (${res.status}): ${text}`);
+      }
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseError) {
+        throw new Error(`Failed to parse report response: ${parseError.message}`);
+      }
+
+      setAnswer(data);
+    } catch (e) {
+      setAnswerError(e.message || String(e));
+    } finally {
+      setAnswerLoading(false);
+    }
   };
 
   const handleExplainRisk = async (hit) => {
@@ -116,9 +197,19 @@ export default function Dashboard() {
         body: JSON.stringify({ question, top_k: 5, analysis_context })
       });
 
-      if (!res.ok) throw new Error("Failed to get answer");
+      const text = await res.text();
+      if (!res.ok) {
+        throw new Error(`Failed to get answer (${res.status}): ${text}`);
+      }
 
-      const data = await res.json();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (parseError) {
+        throw new Error(`Failed to parse answer response: ${parseError.message}`);
+      }
+
+      console.log("Answer response:", data);
       setAnswer(data);
     } catch (e) {
       setAnswerError(e.message);
@@ -453,7 +544,11 @@ export default function Dashboard() {
                   {answer && (
                     <>
                       <h3> Explanation:</h3>
-                      <p style={{ lineHeight: "1.6" }}>{answer.answer}</p>
+                      <p style={{ lineHeight: "1.6" }}>
+                        {typeof answer === "string"
+                          ? answer
+                          : answer.answer || JSON.stringify(answer, null, 2)}
+                      </p>
                       {answer.patch && (
                         <>
                           <h3>Suggested Patch:</h3>
@@ -720,6 +815,34 @@ export default function Dashboard() {
                 </div>
               </div>
             )}
+            {answer && (
+              <div style={{ marginBottom: '2rem', maxWidth: '800px', padding: '1rem', borderRadius: '10px', backgroundColor: '#f9fafb', border: '1px solid #d8e2ea' }}>
+                <h2>Vulnerability Report</h2>
+                <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, color: '#1f2937' }}>
+                  {typeof answer === 'string' ? answer : answer.answer || JSON.stringify(answer, null, 2)}
+                </div>
+                {answer.patch && (
+                  <div style={{ marginTop: '1rem' }}>
+                    <h3>Suggested Patch</h3>
+                    <pre style={{ whiteSpace: 'pre-wrap', background: '#111827', color: '#f9fafb', padding: '1rem', borderRadius: '8px', overflowX: 'auto' }}>
+                      {answer.patch}
+                    </pre>
+                  </div>
+                )}
+                {answer.citations?.length > 0 && (
+                  <div style={{ marginTop: '1rem' }}>
+                    <h4>Citations</h4>
+                    <ul style={{ color: '#374151' }}>
+                      {answer.citations.map((c) => (
+                        <li key={c.doc_id}>
+                          {c.file_path}:{c.line_start}-{c.line_end} {c.rule_id ? `| ${c.rule_id}` : ""}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
             <FileExplorer
               repo={selectedRepo.name}
               owner={selectedRepo.owner}
@@ -972,7 +1095,11 @@ export default function Dashboard() {
                   {answer && (
                     <>
                       <h3> Explanation:</h3>
-                      <p style={{ lineHeight: "1.6" }}>{answer.answer}</p>
+                      <p style={{ lineHeight: "1.6" }}>
+                        {typeof answer === "string"
+                          ? answer
+                          : answer.answer || JSON.stringify(answer, null, 2)}
+                      </p>
                       {answer.patch && (
                         <>
                           <h3>Suggested Patch:</h3>
