@@ -35,24 +35,34 @@ class AnswerResult:
 # Prompting
 # -------------------------
 SYSTEM_PROMPT = """You are a security code assistant.
-You are given retrieved context chunks from static analysis + vulnerability knowledge.
+You are given two sources: the current repository static analysis summary and retrieved vulnerability knowledge.
 Your job:
-1) Explain the finding in plain language.
-2) Suggest a minimal, safe patch (prefer a unified diff).
-3) Cite sources from the provided context only. Do not invent file paths or CVE IDs.
+1) Base your answer on the static analysis summary first.
+2) Use retrieved context only if it explicitly confirms or explains the same file, line number, or issue from the analysis summary.
+3) Do not invent file paths, line numbers, or CVE IDs that are not present in the analysis summary.
+4) If retrieved context appears unrelated to the scanned repository, ignore it and keep the report grounded in the analysis summary.
+5) Suggest a minimal, safe patch (prefer a unified diff).
 If information is missing, say what you assume and what you cannot verify."""
 
 
 USER_TEMPLATE = """User question:
 {question}
 
+Static analysis summary (AST + PyCFG):
+{analysis_context}
+
 Retrieved context (use for citations):
 {context}
 
 Requirements:
-- Provide: Explanation, Risk, Recommended fix, Minimal diff patch.
+- Create a vulnerability report based on the AST and PyCFG static analysis findings.
+- Base the report on the analysis summary first; do not use retrieved context to invent the source file or line number.
+- Use the exact file names and line numbers from the analysis context when describing the reported issue.
+- If retrieved context does not explicitly match the scanned file, ignore it.
+- Explain the security issue, likely root cause, affected code patterns, and risk level.
+- Recommend a minimal fix and, if possible, provide a patch diff.
 - Provide citations as a list of doc_ids you used.
-- If the issue looks like eval/exec/code injection, prefer safer parsing, whitelisting, or literal_eval if appropriate.
+- If the issue looks like eval/exec/code injection, prefer safer parsing, whitelisting, or ast.literal_eval where appropriate.
 """
 
 PATCH_SYSTEM_PROMPT = """You are a security code assistant. The user is asking for a patch for a specific vulnerability.
@@ -61,6 +71,9 @@ Your response must have exactly two parts:
 2. Patch: A minimal unified diff in a ```diff code block. Include any new imports. Do not put the patch outside the code block."""
 PATCH_USER_TEMPLATE = """User request:
 {question}
+
+Static analysis summary (AST + PyCFG):
+{analysis_context}
 
 Retrieved context (use for citations):
 {context}
@@ -190,6 +203,7 @@ def orchestrate_answer(
     retriever_url: str,
     top_k: int = 5,
     filters: Optional[Dict[str, Any]] = None,
+    analysis_context: Optional[str] = None,
 ) -> AnswerResult:
     """
     1) Call /search
@@ -213,9 +227,14 @@ def orchestrate_answer(
     # 2) Format context
     context_str, citations = format_context(hits)
     context_str = redact_secrets(context_str)
+    analysis_context = analysis_context or "No additional static analysis summary provided."
 
     # 3) Prompt
-    user_prompt = USER_TEMPLATE.format(question=question, context=context_str)
+    user_prompt = USER_TEMPLATE.format(
+        question=question,
+        analysis_context=analysis_context,
+        context=context_str,
+    )
 
     # 4) LLM
     if os.getenv("OPENAI_API_KEY"):
@@ -234,6 +253,7 @@ def orchestrate_patch(
     retriever_url: str,
     top_k: int = 5,
     filters: Optional[Dict[str, Any]] = None,
+    analysis_context: Optional[str] = None,
 ) -> AnswerResult:
     """
     For /patch only: retrieve, prompt for explanation + ```diff``` patch, return answer + citations.
@@ -253,7 +273,12 @@ def orchestrate_patch(
 
     context_str, citations = format_context(hits)
     context_str = redact_secrets(context_str)
-    user_prompt = PATCH_USER_TEMPLATE.format(question=question, context=context_str)
+    analysis_context = analysis_context or "No additional static analysis summary provided."
+    user_prompt = PATCH_USER_TEMPLATE.format(
+        question=question,
+        analysis_context=analysis_context,
+        context=context_str,
+    )
 
     if os.getenv("OPENAI_API_KEY"):
         answer = call_openai_chat(PATCH_SYSTEM_PROMPT, user_prompt)

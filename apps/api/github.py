@@ -11,7 +11,13 @@ def extract_owner_repo(repo_link: str):
     return parts[0], parts[1].replace(".git", "")
 
 
-def fetch_python_files(repo_link: str, token: str):
+def fetch_python_files(repo_link: str, token: str, fetch_content: bool = False):
+    """Return a list of dictionaries representing Python files in the repo.
+
+    If `fetch_content` is True the returned objects will include a ``content`` key
+    containing the UTF-8 decoded source. This keeps the existing behaviour for
+    callers that only need the path/size.
+    """
     try:
         owner, repo_name = extract_owner_repo(repo_link)
         g = Github(token)
@@ -37,9 +43,12 @@ def fetch_python_files(repo_link: str, token: str):
             if file.type == "dir":
                 stack.append(file.path)
             elif file.path.endswith(".py"):
-                py_files.append({
-                    "path": file.path,
-                    "size": file.size
-                })
+                entry = {"path": file.path, "size": file.size}
+                if fetch_content:
+                    try:
+                        entry["content"] = file.decoded_content.decode("utf-8", errors="ignore")
+                    except Exception:
+                        entry["content"] = ""
+                py_files.append(entry)
 
     return py_files
