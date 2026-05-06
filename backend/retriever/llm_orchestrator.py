@@ -201,7 +201,7 @@ def local_fallback_patch(question: str, hits: List[Dict[str, Any]]) -> str:
 def orchestrate_answer(
     question: str,
     retriever_url: str,
-    top_k: int = 5,
+    top_k: int = 10,
     filters: Optional[Dict[str, Any]] = None,
     analysis_context: Optional[str] = None,
 ) -> AnswerResult:
@@ -251,7 +251,7 @@ def orchestrate_answer(
 def orchestrate_patch(
     question: str,
     retriever_url: str,
-    top_k: int = 5,
+    top_k: int = 10,
     filters: Optional[Dict[str, Any]] = None,
     analysis_context: Optional[str] = None,
 ) -> AnswerResult:

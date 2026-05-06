@@ -6,7 +6,10 @@ export default function CodeViewer({ filePath, repo, owner, highlightLines = [] 
   const [loading, setLoading] = useState(false);
   const [selectedVuln, setSelectedVuln] = useState(null);
 
-  const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://127.0.0.1:8000";
+  const rawBackendUrl = import.meta.env.VITE_BACKEND_URL;
+  const backendUrl = rawBackendUrl && rawBackendUrl !== "/"
+    ? rawBackendUrl.replace(/\/$/, "")
+    : "http://127.0.0.1:8000";
 
   const fetchFileContent = async () => {
     setLoading(true);
@@ -15,7 +18,7 @@ export default function CodeViewer({ filePath, repo, owner, highlightLines = [] 
         `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`,
         {
           headers: {
-            'Authorization': `token ${localStorage.getItem("token") || import.meta.env.VITE_GITHUB_TOKEN}`,
+            'Authorization': `token ${localStorage.getItem("token")}`,
             'Accept': 'application/vnd.github.v3.raw'
           }
         }

@@ -124,7 +124,7 @@ def index_pipeline(
 def search(
     out_dir: str,
     query: str,
-    top_k: int = 5,
+    top_k: int = 10,
 ):
     out_dir = Path(out_dir).resolve()
     faiss_path = out_dir / "index.faiss"

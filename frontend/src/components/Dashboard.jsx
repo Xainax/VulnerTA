@@ -22,7 +22,10 @@ export default function Dashboard() {
   const [answer, setAnswer] = useState(null);
   const [showModal, setShowModal] = useState(false);
 
-  const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://127.0.0.1:8000";
+  const rawBackendUrl = import.meta.env.VITE_BACKEND_URL;
+  const backendUrl = rawBackendUrl && rawBackendUrl !== "/"
+    ? rawBackendUrl.replace(/\/$/, "")
+    : "http://127.0.0.1:8000";
 
   const handleSelectRepo = async (repo) => {
     console.log("Selected repo:", repo);
