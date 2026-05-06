@@ -30,6 +30,7 @@ app.add_middleware(
 
 class ScanRequest(BaseModel):
     repo_link: str
+    github_token: str = None  # Optional user token from OAuth
 
 @app.get("/")
 def root():
@@ -41,8 +42,8 @@ def scan_repo(req: ScanRequest):
     if "github.com" not in req.repo_link:
         raise HTTPException(status_code=400, detail="Invalid GitHub repo URL")
 
-    # Fetch token at request time
-    token = os.getenv("GITHUB_TOKEN")
+    # Use provided token (from user's OAuth) or fall back to env token
+    token = req.github_token or os.getenv("GITHUB_TOKEN")
     if not token:
         raise HTTPException(status_code=500, detail="Missing GITHUB_TOKEN")
 

@@ -33,10 +33,11 @@ export default function Dashboard() {
     setAnalysisLoading(true);
     try {
       console.log("Starting scan request...");
+      const token = localStorage.getItem("token");
       const res = await fetch(`${backendUrl}/scan`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ repo_link: repo.url })
+        body: JSON.stringify({ repo_link: repo.url, github_token: token })
       });
       console.log("Scan response status:", res.status);
       if (!res.ok) throw new Error(`Scan failed (${res.status})`);
