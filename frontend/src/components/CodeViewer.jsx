@@ -15,7 +15,7 @@ export default function CodeViewer({ filePath, repo, owner, highlightLines = [] 
         `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`,
         {
           headers: {
-            'Authorization': `token ${import.meta.env.VITE_GITHUB_TOKEN}`,
+            'Authorization': `token ${localStorage.getItem("token") || import.meta.env.VITE_GITHUB_TOKEN}`,
             'Accept': 'application/vnd.github.v3.raw'
           }
         }

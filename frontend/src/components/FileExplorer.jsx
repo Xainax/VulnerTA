@@ -13,9 +13,9 @@ export default function FileExplorer({ repo, owner, branch, selectedFile, setSel
     try {
       console.log(`Fetching repo structure for ${owner}/${repo} on branch ${branch || 'main'}`);
       
-      const token = import.meta.env.VITE_GITHUB_TOKEN;
+      const token = localStorage.getItem("token") || import.meta.env.VITE_GITHUB_TOKEN;
       if (!token) {
-        throw new Error("GitHub token not configured. Set VITE_GITHUB_TOKEN in .env.local");
+        throw new Error("GitHub token not configured. Please log in with GitHub.");
       }
 
       const branchName = branch || 'main';

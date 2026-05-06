@@ -14,12 +14,19 @@ export default function RepositorySelector({ onSelectRepo, onBack }) {
     setLoading(true);
     setError("");
     try {
-      const token = import.meta.env.VITE_GITHUB_TOKEN;
+      // Use OAuth token from localStorage if available, otherwise fallback
+      let token = localStorage.getItem("token");
+      
       if (!token) {
-        throw new Error("GitHub token not configured. Set VITE_GITHUB_TOKEN in .env.local");
+        // Fallback for development without OAuth
+        token = import.meta.env.VITE_GITHUB_TOKEN;
+      }
+      
+      if (!token) {
+        throw new Error("GitHub token not configured. Please log in with GitHub.");
       }
 
-      console.log("Fetching user repositories...");
+      console.log("Fetching user repositories with OAuth token...");
 
       // First, get the authenticated user
       const userResponse = await fetch('https://api.github.com/user', {
