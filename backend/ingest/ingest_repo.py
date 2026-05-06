@@ -42,9 +42,14 @@ def main():
     # 3) Run Semgrep -> write directly to file (avoid decoding)
     semgrep_json = (out / "semgrep.json").resolve()
     semgrep_json.parent.mkdir(parents=True, exist_ok=True)
-    semgrep_cmd = ["semgrep", "scan", "--config", "p/ci", "--json", "--output", str(semgrep_json)]
-    p = subprocess.run(semgrep_cmd, cwd=workdir)
+    semgrep_cmd = ["semgrep", "scan", "--config", "p/owasp-top-ten", "--json", "--output", str(semgrep_json)]
+    env = os.environ.copy()
+    env["PYTHONIOENCODING"] = "utf-8"
+    env["PYTHONLEGACYWINDOWSSTDIO"] = "1"
+    p = subprocess.run(semgrep_cmd, cwd=workdir, capture_output=True, env=env)
     if p.returncode not in (0, 1):  # 1 == findings found
+        print(f"Semgrep stderr: {p.stderr.decode('utf-8', errors='replace')}")
+        print(f"Semgrep stdout: {p.stdout.decode('utf-8', errors='replace')}")
         raise SystemExit(f"Semgrep failed: {p.returncode}")
 
     # 4) Metadata
