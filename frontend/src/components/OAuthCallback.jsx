@@ -32,9 +32,14 @@ export default function OAuthCallback() {
 
         const data = await response.json();
 
+        // Clear any previous user data
+        localStorage.clear();
+        
+        // Store new user's token and data
         localStorage.setItem("token", data.access_token);
         localStorage.setItem("user", JSON.stringify(data.user));
 
+        // Force full page reload to reinitialize App with new user
         window.location.href = "/";
       } catch (err) {
         setError(err.message);
