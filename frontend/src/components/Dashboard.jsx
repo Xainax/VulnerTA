@@ -85,7 +85,7 @@ export default function Dashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           query,
-          top_k: 10
+          top_k: 50
         })
       });
 
@@ -162,7 +162,7 @@ export default function Dashboard() {
       const res = await fetch(`${backendUrl}/answer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, top_k: 5, analysis_context })
+        body: JSON.stringify({ question, top_k: 50, analysis_context })
       });
 
       const text = await res.text();
@@ -198,7 +198,7 @@ export default function Dashboard() {
       const res = await fetch(`${backendUrl}/answer`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question, top_k: 5, analysis_context })
+        body: JSON.stringify({ question, top_k: 50, analysis_context })
       });
 
       const text = await res.text();
@@ -241,7 +241,7 @@ export default function Dashboard() {
           code_snippet: hit.text ?? "",
           vulnerability_description: hit.meta?.message ?? "",
           analysis_context,
-          top_k: 5,
+          top_k: 50,
           filters: {}
         })
       });

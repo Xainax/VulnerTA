@@ -11,6 +11,11 @@ from index.chunker import build_chunks_for_repo
 from normalize.parse_static import parse_bandit_json, parse_semgrep_json
 from normalize.linker import link_findings
 
+from analysis import ast_analysis
+from analysis import pycfg_analysis
+from normalize.parse_ast_cfg import parse_ast_analysis_result, parse_pycfg_analysis_result
+
+
 
 def save_duckdb(db_path: Path, chunks: List[dict]):
     """
@@ -79,6 +84,18 @@ def index_pipeline(
     if Path(semgrep_path).exists():
         findings += parse_semgrep_json(semgrep_path)
 
+    # Add AST and CFG analysis results if available
+    repo_files = load_repo_files(repo_root)
+
+    ast_result = ast_analysis.analyze_files(repo_files)
+    pycfg_result = pycfg_analysis.analyze_files(repo_files)
+
+    findings += parse_ast_analysis_result(ast_result)
+    findings += parse_pycfg_analysis_result(pycfg_result)
+
+    print(f"AST findings added: {len(parse_ast_analysis_result(ast_result))}")
+    print(f"PyCFG findings added: {len(parse_pycfg_analysis_result(pycfg_result))}")
+
     # 2) Link findings to CWE/CVE
     findings, ctr = link_findings(findings, cve_cache_path=cve_cache)
     print("Linker counters:", ctr.to_prom_like())
@@ -124,7 +141,7 @@ def index_pipeline(
 def search(
     out_dir: str,
     query: str,
-    top_k: int = 10,
+    top_k: int = 50,
 ):
     out_dir = Path(out_dir).resolve()
     faiss_path = out_dir / "index.faiss"
@@ -160,6 +177,18 @@ def search(
         print(f"Rank {rank}  score={score:.4f}  doc_id={doc_id}")
         print(f"file={meta.get('file_path')}  rule={meta.get('rule_id')}  cwes={meta.get('cwe_ids')}")
         print(d["text"][:1200])
+
+def load_repo_files(repo_root: str) -> List[dict]:
+    root = Path(repo_root).resolve()
+    files = []
+    for p in root.rglob("*.py"):
+        if "venv" in str(p) or ".venv" in str(p):
+            continue
+        files.append({
+            "path": str(p.relative_to(root)).replace("\\", "/"),
+            "content": p.read_text(encoding="utf-8", errors="replace"),
+        })
+    return files
 
 
 def main():

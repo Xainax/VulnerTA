@@ -81,7 +81,7 @@ Retrieved context (use for citations):
 Respond with: (1) A short explanation of the vulnerability and how the patch fixes it, then (2) the patch in a ```diff code block."""
 
 
-def format_context(hits: List[Dict[str, Any]], max_chars: int = 8000) -> Tuple[str, List[Citation]]:
+def format_context(hits: List[Dict[str, Any]], max_chars: int = 20000) -> Tuple[str, List[Citation]]:
     """
     Build a compact context block for the LLM and a structured citation list.
     """
@@ -197,11 +197,49 @@ def local_fallback_patch(question: str, hits: List[Dict[str, Any]]) -> str:
         "```\n"
     )
 
+def debug_hits(label: str, hits: List[Dict[str, Any]]) -> None:
+    if os.getenv("RAG_DEBUG", "0") != "1":
+        return
+
+    print(f"\n[{label}] retrieved hits: {len(hits)}")
+    for h in hits:
+        meta = h.get("meta") or {}
+        print(
+            f"- doc_id={h.get('doc_id')} "
+            f"file={meta.get('file_path')} "
+            f"lines={meta.get('line_start')}-{meta.get('line_end')} "
+            f"rule={meta.get('rule_id')} "
+            f"score={h.get('score')}"
+        )
+
+def norm_path_for_key(p: str) -> str:
+    return (p or "").replace("\\", "/").lstrip("./")
+
+def dedupe_hits(hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    seen = set()
+    out = []
+
+    for h in hits:
+        meta = h.get("meta") or {}
+
+        key = (
+            norm_path_for_key(meta.get("file_path")),
+            meta.get("line_start"),
+            meta.get("line_end"),
+        )
+
+        if key in seen:
+            continue
+
+        seen.add(key)
+        out.append(h)
+
+    return out
 
 def orchestrate_answer(
     question: str,
     retriever_url: str,
-    top_k: int = 10,
+    top_k: int = 50,
     filters: Optional[Dict[str, Any]] = None,
     analysis_context: Optional[str] = None,
 ) -> AnswerResult:
@@ -215,14 +253,22 @@ def orchestrate_answer(
     payload = {
         "query": question,
         "top_k": top_k,
-        "dense_k": 25,
-        "sparse_k": 25,
+        "dense_k": 50,
+        "sparse_k": 50,
         "alpha": 0.6,
         "filters": filters or None,
     }
-    r = requests.post(f"{retriever_url}/search", json=payload, timeout=15)
+    r = requests.post(f"{retriever_url}/search", json=payload, timeout=60)
     r.raise_for_status()
     hits = r.json().get("hits") or []
+
+    debug_hits("RAW", hits)
+
+    hits = dedupe_hits(hits)
+
+    debug_hits("DEDUPED", hits)
+
+    context_str, citations = format_context(hits)
 
     # 2) Format context
     context_str, citations = format_context(hits)
@@ -251,7 +297,7 @@ def orchestrate_answer(
 def orchestrate_patch(
     question: str,
     retriever_url: str,
-    top_k: int = 10,
+    top_k: int = 50,
     filters: Optional[Dict[str, Any]] = None,
     analysis_context: Optional[str] = None,
 ) -> AnswerResult:
@@ -270,6 +316,12 @@ def orchestrate_patch(
     r = requests.post(f"{retriever_url}/search", json=payload, timeout=15)
     r.raise_for_status()
     hits = r.json().get("hits") or []
+
+    debug_hits("RAW", hits)
+
+    hits = dedupe_hits(hits)
+
+    debug_hits("DEDUPED", hits)
 
     context_str, citations = format_context(hits)
     context_str = redact_secrets(context_str)

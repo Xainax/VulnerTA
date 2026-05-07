@@ -71,9 +71,9 @@ class SearchFilters(BaseModel):
 
 class SearchRequest(BaseModel):
     query: str
-    top_k: int = Field(default=5, ge=1, le=50)
-    dense_k: int = Field(default=20, ge=1, le=200)
-    sparse_k: int = Field(default=20, ge=1, le=200)
+    top_k: int = Field(default=50, ge=1, le=100)
+    dense_k: int = Field(default=100, ge=1, le=300)
+    sparse_k: int = Field(default=100, ge=1, le=300)
     alpha: float = Field(default=0.6, ge=0.0, le=1.0, description="Weight for dense score in hybrid merge")
     filters: Optional[SearchFilters] = None
 
@@ -92,7 +92,7 @@ class SearchResponse(BaseModel):
 
 class AnswerRequest(BaseModel):
     question: str
-    top_k: int = Field(default=5, ge=1, le=20)
+    top_k: int = Field(default=50, ge=1, le=100)
     filters: Optional[SearchFilters] = None
     analysis_context: Optional[str] = None
 
