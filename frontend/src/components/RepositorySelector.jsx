@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 
-export default function RepositorySelector({ onSelectRepo, onBack }) {
+export default function RepositorySelector({ onSelectRepo, onBack, analyzing = false }) {
   const [repos, setRepos] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -119,7 +119,8 @@ export default function RepositorySelector({ onSelectRepo, onBack }) {
       <div style={{
         padding: '2rem',
         maxWidth: '1200px',
-        margin: '0 auto'
+        margin: '0 auto',
+        position: 'relative'
       }}>
         <p style={{ color: '#666', marginTop: 0 }}>Choose a repository to analyze for vulnerabilities</p>
 
@@ -187,7 +188,7 @@ export default function RepositorySelector({ onSelectRepo, onBack }) {
           {filteredRepos.map((repo) => (
             <div
               key={repo.id}
-              onClick={() => onSelectRepo(repo)}
+              onClick={() => !analyzing && onSelectRepo(repo)}
               style={{
                 padding: '1.5rem',
                 border: '1px solid #ddd',
@@ -267,26 +268,46 @@ export default function RepositorySelector({ onSelectRepo, onBack }) {
               </div>
 
               <button
+                disabled={analyzing}
                 onClick={(e) => {
                   e.stopPropagation();
-                  onSelectRepo(repo);
+                  if (!analyzing) onSelectRepo(repo);
                 }}
                 style={{
                   width: '100%',
                   padding: '0.75rem',
-                  backgroundColor: '#0366d6',
+                  backgroundColor: analyzing ? '#999' : '#0366d6',
                   color: 'white',
                   border: 'none',
                   borderRadius: '4px',
-                  cursor: 'pointer',
+                  cursor: analyzing ? 'not-allowed' : 'pointer',
                   fontWeight: 'bold',
                   fontSize: '0.9rem'
                 }}
               >
-                Analyze →
+                {analyzing ? 'Analyzing…' : 'Analyze →'}
               </button>
             </div>
           ))}
+        </div>
+      )}
+      {analyzing && (
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundColor: 'rgba(255,255,255,0.88)',
+          zIndex: 20,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          flexDirection: 'column',
+          gap: '0.75rem',
+          padding: '2rem',
+          textAlign: 'center'
+        }}>
+          <div style={{ fontSize: '2.5rem' }}>⏳</div>
+          <div style={{ fontSize: '1.2rem', fontWeight: 'bold' }}>Analyzing repository...</div>
+          <div style={{ color: '#555' }}>This may take a moment while we scan the selected repo.</div>
         </div>
       )}
 

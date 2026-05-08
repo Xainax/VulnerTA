@@ -20,7 +20,10 @@ export default function Dashboard() {
   const [answerLoading, setAnswerLoading] = useState(false);
   const [answerError, setAnswerError] = useState("");
   const [answer, setAnswer] = useState(null);
+  const [report, setReport] = useState(null);
+  const [reportError, setReportError] = useState("");
   const [showModal, setShowModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
 
   const rawBackendUrl = import.meta.env.VITE_BACKEND_URL;
   const backendUrl = rawBackendUrl && rawBackendUrl !== "/"
@@ -154,8 +157,9 @@ export default function Dashboard() {
   const generateRepoReport = async (analysis_context) => {
     setAnswerLoading(true);
     setAnswerError("");
+    setReportError("");
     setAnswer(null);
-    setShowModal(true);
+    setReport(null);
 
     try {
       const question = "Create a vulnerability report based on the repository scan findings. Summarize the main issues, likely root causes, risk levels, and recommended fixes.";
@@ -177,9 +181,9 @@ export default function Dashboard() {
         throw new Error(`Failed to parse report response: ${parseError.message}`);
       }
 
-      setAnswer(data);
+      setReport(data);
     } catch (e) {
-      setAnswerError(e.message || String(e));
+      setReportError(e.message || String(e));
     } finally {
       setAnswerLoading(false);
     }
@@ -287,7 +291,7 @@ export default function Dashboard() {
 
   // Repository Selector View
   if (view === "selector") {
-    return <RepositorySelector onSelectRepo={handleSelectRepo} onBack={() => setView("tabs")} />;
+    return <RepositorySelector onSelectRepo={handleSelectRepo} onBack={() => setView("tabs")} analyzing={analysisLoading} />;
   }
 
   // Standalone Vulnerability Search View
@@ -819,32 +823,90 @@ export default function Dashboard() {
                 </div>
               </div>
             )}
-            {answer && (
+            {report && (
               <div style={{ marginBottom: '2rem', maxWidth: '800px', padding: '1rem', borderRadius: '10px', backgroundColor: '#f9fafb', border: '1px solid #d8e2ea' }}>
-                <h2>Vulnerability Report</h2>
-                <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, color: '#1f2937' }}>
-                  {typeof answer === 'string' ? answer : answer.answer || JSON.stringify(answer, null, 2)}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+                  <div>
+                    <h2 style={{ margin: 0 }}>Vulnerability Report</h2>
+                    <p style={{ margin: '0.5rem 0 0 0', color: '#555' }}>
+                      A full vulnerability report is ready for this repository.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setShowReportModal(true)}
+                    style={{
+                      padding: '0.75rem 1.2rem',
+                      borderRadius: '8px',
+                      border: 'none',
+                      backgroundColor: '#0366d6',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    View report
+                  </button>
                 </div>
-                {answer.patch && (
-                  <div style={{ marginTop: '1rem' }}>
-                    <h3>Suggested Patch</h3>
-                    <pre style={{ whiteSpace: 'pre-wrap', background: '#111827', color: '#f9fafb', padding: '1rem', borderRadius: '8px', overflowX: 'auto' }}>
-                      {answer.patch}
-                    </pre>
+              </div>
+            )}
+            {answerLoading && !report && (
+              <div style={{ marginBottom: '2rem', maxWidth: '800px', padding: '1rem', borderRadius: '10px', backgroundColor: '#fff8e1', border: '1px solid #ffecb3', color: '#795548' }}>
+                Generating vulnerability report...
+              </div>
+            )}
+            {reportError && (
+              <p style={{ color: 'red', marginBottom: '1rem' }}>Report generation failed: {reportError}</p>
+            )}
+            {showReportModal && report && (
+              <div
+                style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  width: '100vw',
+                  height: '100vh',
+                  backgroundColor: 'rgba(0, 0, 0, 0.65)',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  zIndex: 9999,
+                  padding: '1rem'
+                }}
+                onClick={() => setShowReportModal(false)}
+              >
+                <div
+                  style={{
+                    position: 'relative',
+                    width: 'min(900px, 100%)',
+                    maxHeight: '90vh',
+                    backgroundColor: 'white',
+                    borderRadius: '16px',
+                    padding: '1.5rem',
+                    overflowY: 'auto',
+                    boxShadow: '0 24px 80px rgba(0,0,0,0.25)'
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    onClick={() => setShowReportModal(false)}
+                    style={{
+                      position: 'absolute',
+                      top: '1rem',
+                      right: '1rem',
+                      border: 'none',
+                      background: 'transparent',
+                      fontSize: '1.4rem',
+                      cursor: 'pointer',
+                      color: '#333'
+                    }}
+                  >
+                    ×
+                  </button>
+                  <h2 style={{ marginTop: 0, marginBottom: '0.5rem' }}>Full Vulnerability Report</h2>
+                  <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, color: '#111' }}>
+                    {typeof report === 'string' ? report : report.answer || JSON.stringify(report, null, 2)}
                   </div>
-                )}
-                {answer.citations?.length > 0 && (
-                  <div style={{ marginTop: '1rem' }}>
-                    <h4>Citations</h4>
-                    <ul style={{ color: '#374151' }}>
-                      {answer.citations.map((c) => (
-                        <li key={c.doc_id}>
-                          {c.file_path}:{c.line_start}-{c.line_end} {c.rule_id ? `| ${c.rule_id}` : ""}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                </div>
               </div>
             )}
             <FileExplorer
