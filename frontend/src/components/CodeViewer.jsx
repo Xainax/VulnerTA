@@ -229,7 +229,7 @@ export default function CodeViewer({ filePath, repo, owner, highlightLines = [] 
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
                   <div>
-                    <h4 style={{ margin: 0 }}>Selected vulnerability</h4>
+                    <h4 style={{ margin: 0, color: 'black'}}>Selected vulnerability</h4>
                     <p style={{ margin: '0.4rem 0 0 0', color: '#555', fontSize: '0.9rem' }}>
                       Line {selectedVuln.line} · {selectedVuln.type}
                     </p>
@@ -247,7 +247,7 @@ export default function CodeViewer({ filePath, repo, owner, highlightLines = [] 
               </div>
             )}
 
-            <h3 style={{ marginTop: 0 }}>⚠️ Vulnerabilities ({vulnerabilities.length})</h3>
+            <h3 style={{ marginTop: 0, color: 'black' }}>⚠️ Vulnerabilities ({vulnerabilities.length})</h3>
 
             {vulnerabilities.map((vuln, idx) => {
               const badgeColor = getSeverityBadgeColor(vuln.severity);
@@ -277,7 +277,7 @@ export default function CodeViewer({ filePath, repo, owner, highlightLines = [] 
                     <span style={{ fontSize: '1rem', flexShrink: 0 }}>⚠️</span>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                        <span style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>{vuln.type}</span>
+                        <span style={{ fontWeight: 'bold', fontSize: '0.9rem', color: 'black' }}>{vuln.type}</span>
                         <span style={{
                           fontSize: '0.7rem', padding: '0.2rem 0.4rem', borderRadius: '3px',
                           fontWeight: 'bold', backgroundColor: badgeColor.bg, color: badgeColor.text
