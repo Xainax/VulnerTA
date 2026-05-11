@@ -94,6 +94,7 @@
   border-left: 1px solid #ddd;
   overflow-y: auto;
   padding: 1rem;
+  color: #111;
 }
 
 .vuln-item {

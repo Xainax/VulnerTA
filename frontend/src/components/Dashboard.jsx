@@ -24,6 +24,7 @@ export default function Dashboard() {
   const [reportError, setReportError] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [reportLoading, setReportLoading] = useState(false);
 
   const rawBackendUrl = import.meta.env.VITE_BACKEND_URL;
   const backendUrl = rawBackendUrl && rawBackendUrl !== "/"

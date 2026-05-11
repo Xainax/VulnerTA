@@ -267,7 +267,7 @@ export default function CodeViewer({ filePath, repo, owner, highlightLines = [] 
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
                   <div>
-                    <h4 style={{ margin: 0 }}>Selected vulnerability</h4>
+                    <h4 style={{ margin: 0, color: '#111' }}>Selected vulnerability</h4>
                     <p style={{ margin: '0.4rem 0 0 0', color: '#555', fontSize: '0.9rem' }}>
                       Line {selectedVuln.line} · {selectedVuln.type}
                     </p>
@@ -289,7 +289,7 @@ export default function CodeViewer({ filePath, repo, owner, highlightLines = [] 
               </div>
             )}
 
-            <h3 style={{ marginTop: 0 }}>
+            <h3 style={{ marginTop: 0, color: '#111' }}>
               ⚠️ Vulnerabilities ({vulnerabilities.length})
             </h3>
 
@@ -328,7 +328,7 @@ export default function CodeViewer({ filePath, repo, owner, highlightLines = [] 
                     <span style={{ fontSize: '1rem', flexShrink: 0 }}>⚠️</span>
                     <div style={{ flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                        <span style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
+                        <span style={{ fontWeight: 'bold', fontSize: '0.9rem', color: 'black' }}>
                           {vuln.type}
                         </span>
                         <span style={{
@@ -411,36 +411,36 @@ export default function CodeViewer({ filePath, repo, owner, highlightLines = [] 
             >
               ×
             </button>
-            <h2 style={{ marginTop: 0, marginBottom: '0.5rem' }}>Vulnerability details</h2>
+            <h2 style={{ marginTop: 0, marginBottom: '0.5rem', color: 'black' }}>Vulnerability details</h2>
             <p style={{ color: '#555', margin: '0 0 1rem 0' }}>
               Detailed information for <strong>{selectedVuln.type}</strong> at line <strong>{selectedVuln.line}</strong>.
             </p>
             <div style={{ display: 'grid', gap: '0.75rem', marginBottom: '1rem' }}>
               <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                <span style={{ fontWeight: 'bold' }}>Severity:</span>
+                <span style={{ fontWeight: 'bold', color: 'black' }}>Severity:</span>
                 <span style={{ padding: '0.25rem 0.5rem', borderRadius: '6px', backgroundColor: getSeverityBadgeColor(selectedVuln.severity).bg, color: getSeverityBadgeColor(selectedVuln.severity).text, fontWeight: 'bold' }}>
                   {selectedVuln.severity.toUpperCase()}
                 </span>
               </div>
               <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                <span style={{ fontWeight: 'bold' }}>Line:</span>
-                <span>{selectedVuln.line}</span>
+                <span style={{ fontWeight: 'bold', color: 'black' }}>Line:</span>
+                <span style={{ color: 'black' }}>{selectedVuln.line}</span>
               </div>
               {selectedVuln.cveId && (
                 <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                  <span style={{ fontWeight: 'bold' }}>CVE:</span>
+                  <span style={{ fontWeight: 'bold', color: 'black' }}>CVE:</span>
                   <span>{selectedVuln.cveId}</span>
                 </div>
               )}
             </div>
             <div style={{ backgroundColor: '#f7f9fc', padding: '1rem', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
-              <h3 style={{ margin: '0 0 0.5rem 0' }}>Description</h3>
+              <h3 style={{ margin: '0 0 0.5rem 0', color: 'black' }}>Description</h3>
               <p style={{ margin: 0, color: '#333', lineHeight: '1.6' }}>
                 {selectedVuln.message || 'No additional description available.'}
               </p>
             </div>
             <div style={{ marginTop: '1rem' }}>
-              <h3 style={{ margin: '0 0 0.5rem 0' }}>Code snippet</h3>
+              <h3 style={{ margin: '0 0 0.5rem 0', color: 'black' }}>Code snippet</h3>
               <pre style={{
                 whiteSpace: 'pre-wrap',
                 overflowX: 'auto',
